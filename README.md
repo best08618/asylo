@@ -127,7 +127,7 @@ run the `hello_world` example as above but in an interactive terminal, run:
 ```bash
 docker run -it --rm \
     -v bazel-cache:/root/.cache/bazel \
-    -v "${MY_PROJECT}":/opt/my-project \
+    -v "${MYPROJECT}":/opt/my-project \
     -w /opt/my-project \
     gcr.io/asylo-framework/asylo
 ```
