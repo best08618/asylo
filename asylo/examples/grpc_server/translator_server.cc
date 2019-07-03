@@ -16,6 +16,8 @@
  *
  */
 
+//change code here: grpc server takes float array , calculates and returns float array 
+
 #include "asylo/examples/grpc_server/translator_server.h"
 #include "absl/strings/str_split.h" // jinhwan
 
@@ -163,7 +165,7 @@ void TranslatorServer::setOutput(GetMatmulResponse* response) {
 	
         for (int i = 0; i < row_mat1; i++) {
                 for (int j = 0; j < col_mat2; j++) 
-			response->add_result(matrix_result[i][j]);
+			response->add_result(matrix_result[i][j]); //add each result to response var
         }
 }
 
