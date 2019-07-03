@@ -21,7 +21,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 int getgrgid_r(gid_t gid, struct group *grp, char *buf, size_t buflen,
                struct group **result) {
@@ -33,4 +35,6 @@ int getgrnam_r(const char *name, struct group *grp, char *buf, size_t buflen,
   abort();
 }
 
+#ifdef __cplusplus
 }  // extern "C"
+#endif

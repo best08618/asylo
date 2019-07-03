@@ -19,7 +19,6 @@
 #ifndef ASYLO_CRYPTO_UTIL_BYTES_H_
 #define ASYLO_CRYPTO_UTIL_BYTES_H_
 
-#include <openssl/mem.h>
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -32,6 +31,7 @@
 #include "asylo/util/cleansing_allocator.h"
 #include "asylo/util/status_macros.h"
 #include "asylo/util/statusor.h"
+#include <openssl/mem.h>
 
 namespace asylo {
 
@@ -256,11 +256,8 @@ class Bytes {
   static constexpr size_t size() { return Size; }
   static constexpr DataSafety policy() { return Policy::policy; }
 
-  uint8_t data_[Size];
-
  protected:
-  // The default constructor is defaulted so that Bytes is a trivial class.
-  Bytes() = default;
+  Bytes() { PerformStaticChecks(); }
 
   // Instantiates a new object and copy the input data. If the input data is
   // larger than the value of the Size template parameter on the class, then
@@ -299,6 +296,7 @@ class Bytes {
     static_assert(offsetof(Bytes, data_) == 0,
                   "Offset of the member data_ within the class is incorrect.");
   }
+  uint8_t data_[Size];
 } ABSL_ATTRIBUTE_PACKED;
 
 // Define SafeBytes.
@@ -316,8 +314,6 @@ class SafeBytes final : public Bytes<Size, SafePolicy, SafeBytes<Size>> {
   using const_iterator = typename base_type::const_iterator;
   using reverse_iterator = typename base_type::reverse_iterator;
   using const_reverse_iterator = typename base_type::const_reverse_iterator;
-
-  SafeBytes() = default;
 
   // The following template constructor just forwards all its arguments to the
   // constructor of the base type. This template construct is safe because none
@@ -361,16 +357,6 @@ class UnsafeBytes final : public Bytes<Size, UnsafePolicy, UnsafeBytes<Size>> {
   using reverse_iterator = typename base_type::reverse_iterator;
   using const_reverse_iterator = typename base_type::const_reverse_iterator;
 
-  // The default constructor, copy and move constructors, copy and move
-  // assignment operators, and destructor are all defaulted so that the
-  // UnsafeBytes class is a trivial class.
-  UnsafeBytes() = default;
-  UnsafeBytes(const UnsafeBytes &) = default;
-  UnsafeBytes &operator=(const UnsafeBytes &) = default;
-  UnsafeBytes(UnsafeBytes &&) = default;
-  UnsafeBytes &operator=(UnsafeBytes &&) = default;
-  ~UnsafeBytes() = default;
-
   // The following template constructor just forwards all its arguments to the
   // constructor of the base type. This template construct is safe because none
   // of the constructors of the base type are marked explicit. As a result,
@@ -379,6 +365,8 @@ class UnsafeBytes final : public Bytes<Size, UnsafePolicy, UnsafeBytes<Size>> {
   template <typename... Args>
   UnsafeBytes(Args &&... args)
       : base_type(std::forward<Args>(args)...) {}
+
+  ~UnsafeBytes() = default;
 
   // The equality operator. Since the UnsafeBytes class uses UnsafePolicy to
   // configure its Bytes base class, the Equals method, when invoked on an
@@ -405,8 +393,8 @@ template <size_t InputSize>
 StatusOr<SafeBytes<(InputSize - 1) / 2>> InstantiateSafeBytesFromHexString(
     const char *bytes_hex) {
   SafeBytes<(InputSize - 1) / 2> bytes;
-  ASYLO_RETURN_IF_ERROR(SetTrivialObjectFromHexString(
-      std::string(bytes_hex, InputSize - 1), &bytes));
+  ASYLO_RETURN_IF_ERROR(
+      SetTrivialObjectFromHexString(std::string(bytes_hex, InputSize - 1), &bytes));
   return bytes;
 }
 
@@ -418,8 +406,8 @@ template <size_t InputSize>
 StatusOr<UnsafeBytes<(InputSize - 1) / 2>> InstantiateUnsafeBytesFromHexString(
     const char *bytes_hex) {
   UnsafeBytes<(InputSize - 1) / 2> bytes;
-  ASYLO_RETURN_IF_ERROR(SetTrivialObjectFromHexString(
-      std::string(bytes_hex, InputSize - 1), &bytes));
+  ASYLO_RETURN_IF_ERROR(
+      SetTrivialObjectFromHexString(std::string(bytes_hex, InputSize - 1), &bytes));
   return bytes;
 }
 // Stream-insertion operator for SafeBytes. Writes the hex representation of

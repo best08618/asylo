@@ -26,10 +26,9 @@ namespace {
 
 class AddrinfoTest : public EnclaveTest {
  protected:
-  void SetEnclaveInput(EnclaveInput *enclave_input,
-                       const AddrInfoTestInput::TestMode mode) {
+  void SetEnclaveInput(EnclaveInput *enclave_input, bool use_addrinfo_hints) {
     AddrInfoTestInput test_input;
-    test_input.set_mode(mode);
+    test_input.set_use_addrinfo_hints(use_addrinfo_hints);
     *enclave_input->MutableExtension(addrinfo_test_input) = test_input;
   }
 };
@@ -37,21 +36,14 @@ class AddrinfoTest : public EnclaveTest {
 // Tests getaddrinfo() and freeaddrinfo() without any hints
 TEST_F(AddrinfoTest, AddrinfoNoHintsTest) {
   EnclaveInput enclave_input;
-  SetEnclaveInput(&enclave_input, AddrInfoTestInput::NO_HINTS);
+  SetEnclaveInput(&enclave_input, /*use_addrinfo_hints=*/false);
   EXPECT_THAT(client_->EnterAndRun(enclave_input, nullptr), IsOk());
 }
 
-// Tests getaddrinfo() and freeaddrinfo() with hints set to AF_UNSPEC
-TEST_F(AddrinfoTest, AddrinfoUnspecHintsTest) {
+// Tests getaddrinfo() and freeaddrinfo() with addrinfo hints
+TEST_F(AddrinfoTest, AddrinfoHintsTest) {
   EnclaveInput enclave_input;
-  SetEnclaveInput(&enclave_input, AddrInfoTestInput::UNSPEC_HINTS);
-  EXPECT_THAT(client_->EnterAndRun(enclave_input, nullptr), IsOk());
-}
-
-// Tests getaddrinfo() and freeaddrinfo() with IPv4/6 addrinfo hints
-TEST_F(AddrinfoTest, AddrinfoIpHintsTest) {
-  EnclaveInput enclave_input;
-  SetEnclaveInput(&enclave_input, AddrInfoTestInput::IP_HINTS);
+  SetEnclaveInput(&enclave_input, /*use_addrinfo_hints=*/true);
   EXPECT_THAT(client_->EnterAndRun(enclave_input, nullptr), IsOk());
 }
 

@@ -24,49 +24,49 @@
 #include <gtest/gtest.h>
 #include "asylo/util/logging.h"
 #include "asylo/platform/common/time_util.h"
-#include "asylo/test/util/pthread_test_util.h"
 #include "asylo/test/util/status_matchers.h"
+#include "asylo/test/util/test_util.h"
 #include "asylo/util/status.h"
 
 namespace asylo {
 namespace {
 
 TEST(EnclaveSem, InvalidSemPointer) {
-  // Test various functions to ensure they return EFAULT rather than crashing if
+  // Test various functions to ensure they return EINVAL rather than crashing if
   // they get invalid pointers.
 
   // sem_init
   ASSERT_EQ(sem_init(nullptr, /*pshared=*/0, /*value=*/0), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
 
   // sem_destroy
   ASSERT_EQ(sem_destroy(nullptr), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
 
   // sem_post
   ASSERT_EQ(sem_post(nullptr), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
 
   // sem_wait
   ASSERT_EQ(sem_wait(nullptr), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
 
   // sem_trywait
   ASSERT_EQ(sem_wait(nullptr), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
 
   // sem_timedwait
   timespec ts;
   ASSERT_EQ(sem_timedwait(nullptr, &ts), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
 
   // sem_getvalue
   int value;
   ASSERT_EQ(sem_getvalue(nullptr, &value), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
   sem_t sem;
   ASSERT_EQ(sem_getvalue(&sem, nullptr), -1);
-  ASSERT_EQ(errno, EFAULT);
+  ASSERT_EQ(errno, EINVAL);
 }
 
 TEST(EnclaveSem, SharedNotAllowed) {

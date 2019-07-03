@@ -53,23 +53,24 @@ def asylo_testonly_deps():
 
     # GoogleTest/GoogleMock framework. Used by most unit-tests.
     if "com_google_googletest" not in native.existing_rules():
-        http_archive(
+        patch_repository(
             name = "com_google_googletest",
             urls = [
-                "https://github.com/google/googletest/archive/eb9225ce361affe561592e0912320b9db84985d0.tar.gz",
+                "https://github.com/google/googletest/archive/release-1.8.1.tar.gz",
             ],
-            sha256 = "a4cb4b0c3ebb191b798594aca674ad47eee255dcb4c26885cf7f49777703484f",
-            strip_prefix = "googletest-eb9225ce361affe561592e0912320b9db84985d0",
+            sha256 = "9bf1fe5182a604b4135edc1a425ae356c9ad15e9b23f9f12a02e80184c3a249c",
+            strip_prefix = "googletest-release-1.8.1",
+            patches = ["@com_google_asylo//asylo/distrib:googletest.patch"],
         )
 
     # gflags
     if "com_github_gflags_gflags" not in native.existing_rules():
         http_archive(
             name = "com_github_gflags_gflags",
-            # Release v2.2.2
-            urls = ["https://github.com/gflags/gflags/archive/v2.2.2.tar.gz"],
-            sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
-            strip_prefix = "gflags-2.2.2",
+            # Release v2.2.1
+            urls = ["https://github.com/gflags/gflags/archive/v2.2.1.tar.gz"],
+            sha256 = "ae27cdbcd6a2f935baa78e4f21f675649271634c092b1be01469440495609d0e",
+            strip_prefix = "gflags-2.2.1",
         )
 
 def asylo_deps():
@@ -80,12 +81,13 @@ def asylo_deps():
 
     # Boringssl
     if "boringssl" not in native.existing_rules():
-        http_archive(
+        patch_repository(
             name = "boringssl",
             # Non-release commit to master-with-bazel branch from March 8, 2018
             urls = [
                 "https://github.com/google/boringssl/archive/241dc59bb90f8c45ebc8473fc7599b861a93bfa6.tar.gz",
             ],
+            patches = ["@com_google_asylo//asylo/distrib:boringssl.patch"],
             sha256 = "379e5f0f29e1429b00b44b87b66776d123dd18410b457e0a18e4f0eeff4b94c9",
             strip_prefix = "boringssl-241dc59bb90f8c45ebc8473fc7599b861a93bfa6",
         )
@@ -103,12 +105,12 @@ def asylo_deps():
     if "com_google_absl" not in native.existing_rules():
         http_archive(
             name = "com_google_absl",
-            # Head commit on 2019-01-31.
+            # Head commit on Nov 20, 2018.
             urls = [
-                "https://github.com/abseil/abseil-cpp/archive/d78310fe5a82f2e0e6e16509ef8079c8d7e4674e.tar.gz",
+                "https://github.com/abseil/abseil-cpp/archive/3088e76c597e068479e82508b1770a7ad0c806b6.tar.gz",
             ],
-            sha256 = "4c2e4194bbddcb5162933e45fe574d2c4e77a2ef00818b8dac0392459707bfff",
-            strip_prefix = "abseil-cpp-d78310fe5a82f2e0e6e16509ef8079c8d7e4674e",
+            sha256 = "d10f684f170eb36f3ce752d2819a0be8cc703b429247d7d662ba5b4b48dd7f65",
+            strip_prefix = "abseil-cpp-3088e76c597e068479e82508b1770a7ad0c806b6",
         )
 
     # Absl for python
@@ -117,27 +119,27 @@ def asylo_deps():
             name = "io_abseil_py",
             # Pre-release commit dated 01/30/2018
             urls = ["https://github.com/abseil/abseil-py/archive/5e343642d987268df199b4c851b7dd3d687ac316.tar.gz"],
-            sha256 = "3c83ba6be3df1ea6d2dd1608830853981d47d2a0faa6c9505e4c8022fc41c912",
             strip_prefix = "abseil-py-5e343642d987268df199b4c851b7dd3d687ac316",
         )
 
     # Protobuf
     if "com_google_protobuf" not in native.existing_rules():
-        http_archive(
+        patch_repository(
             name = "com_google_protobuf",
-            strip_prefix = "protobuf-3.6.1.2",
-            urls = ["https://github.com/google/protobuf/archive/v3.6.1.2.tar.gz"],
-            sha256 = "2244b0308846bb22b4ff0bcc675e99290ff9f1115553ae9671eba1030af31bc0",
+            strip_prefix = "protobuf-3.5.1",
+            urls = ["https://github.com/google/protobuf/archive/v3.5.1.tar.gz"],
+            sha256 = "826425182ee43990731217b917c5c3ea7190cfda141af4869e6d4ad9085a740f",
+            patches = ["@com_google_asylo//asylo/distrib:protobuf.patch"],
         )
 
     # gRPC
     if "com_github_grpc_grpc" not in native.existing_rules():
         patch_repository(
             name = "com_github_grpc_grpc",
-            urls = ["https://github.com/grpc/grpc/archive/v1.18.0.tar.gz"],
-            sha256 = "069a52a166382dd7b99bf8e7e805f6af40d797cfcee5f80e530ca3fc75fd06e2",
-            patches = ["@com_google_asylo//asylo/distrib:grpc_1_18_0.patch"],
-            strip_prefix = "grpc-1.18.0",
+            urls = ["https://github.com/grpc/grpc/archive/v1.13.0.tar.gz"],
+            sha256 = "50db9cf2221354485eb7c3bd55a4c27190caef7048a2a1a15fbe60a498f98b44",
+            patches = ["@com_google_asylo//asylo/distrib:grpc_1_13_0.patch"],
+            strip_prefix = "grpc-1.13.0",
         )
 
     # Google certificate transparency has a merkletree implementation.
@@ -187,18 +189,11 @@ cc_library(
             build_file = "@com_google_protobuf//:six.BUILD",
             # Release 1.10.0
             url = "https://pypi.python.org/packages/source/s/six/six-1.10.0.tar.gz",
-            sha256 = "105f8d68616f8248e24bf0e9372ef04d3cc10104f1980f54d57b2ce73a5ad56a",
         )
 
     native.bind(
         name = "six",
         actual = "@six_archive//:six",
-    )
-
-    # required by protobuf_python
-    native.bind(
-        name = "python_headers",
-        actual = "@com_google_protobuf//util/python:python_headers",
     )
 
     # Jinja for code_generator.py
@@ -212,7 +207,6 @@ cc_library(
     visibility = ["//visibility:public"],
     srcs = glob(["jinja2/*.py"]),
 )""",
-            sha256 = "0d31d3466c313a9ca014a2d904fed18cdac873a5ba1f7b70b8fd8b206cd860d6",
         )
 
 def asylo_go_deps():
@@ -222,8 +216,8 @@ def asylo_go_deps():
     if "io_bazel_rules_go" not in native.existing_rules():
         http_archive(
             name = "io_bazel_rules_go",
-            url = "https://github.com/bazelbuild/rules_go/releases/download/0.17.0/rules_go-0.17.0.tar.gz",
-            sha256 = "492c3ac68ed9dcf527a07e6a1b2dcbf199c6bf8b35517951467ac32e421c06c1",
+            url = "https://github.com/bazelbuild/rules_go/releases/download/0.10.1/rules_go-0.10.1.tar.gz",
+            sha256 = "4b14d8dd31c6dbaf3ff871adcd03f28c3274e42abc855cb8fb4d01233c0154dc",
         )
 
     # go crypto for EKEP's go_binary usage.
@@ -231,7 +225,8 @@ def asylo_go_deps():
         http_archive(
             name = "com_github_golang_crypto",
             build_file_content = """
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_prefix")
+go_prefix("github.com/golang/crypto")
 
 go_library(
     name = "curve25519",
@@ -247,19 +242,16 @@ go_library(
         "curve25519/mul_amd64.s",
         "curve25519/square_amd64.s",
     ],
-    importpath = "github.com/golang/crypto/curve25519",
     visibility = ["//visibility:public"],
 )
 go_library(
     name = "hkdf",
     srcs = ["hkdf/hkdf.go"],
-    importpath = "github.com/golang/crypto/hkdf",
     visibility = ["//visibility:public"],
 )
 """,
-            # Non-release commit from January 31, 2019. golang/crypto does not
-            # have releases.
-            urls = ["https://github.com/golang/crypto/archive/b8fe1690c61389d7d2a8074a507d1d40c5d30448.tar.gz"],
-            sha256 = "21bded0f669be39373c16b5bff02916aeaf971f0f5d8696f69fa89297844586d",
-            strip_prefix = "crypto-b8fe1690c61389d7d2a8074a507d1d40c5d30448",
+            # Non-release commit from March 8, 2018
+            urls = ["https://github.com/golang/crypto/archive/c7dcf104e3a7a1417abc0230cb0d5240d764159d.tar.gz"],
+            sha256 = "e7b88be3ea254c20e126dfa6caf5169b65ce9e19d91ebe445cedbf8308258e49",
+            strip_prefix = "crypto-c7dcf104e3a7a1417abc0230cb0d5240d764159d",
         )

@@ -55,28 +55,13 @@ bool ShouldFuzzField(int percent) {
 template <typename ProtoT, typename FieldT>
 using ProtoFieldSetter = void (ProtoT::*)(FieldT);
 
-// The following two helper functions fuzz the field referred to by the
-// |set_field| method in |message| with a |percent| / 100 probability.
+// Fuzzes the field referred to by the |set_field| method in |message| with a
+// |percent| / 100 probability.
 template <typename ProtoT, typename FieldT>
 void FuzzField(int percent, ProtoFieldSetter<ProtoT, FieldT> set_field,
                ProtoT *message) {
   if (ShouldFuzzField(percent)) {
     (message->*set_field)(TrivialRandomObject<FieldT>());
-  }
-}
-
-template <typename ProtoT>
-void FuzzField(int percent, ProtoFieldSetter<ProtoT, bool> set_field,
-               ProtoT *message) {
-  // Don't use TrivialRandomObject() to set a bool to a random value because not
-  // all byte values are valid for bool. Instead, just set the value of the bool
-  // based on the first bit of a random number.
-  if (ShouldFuzzField(percent)) {
-    if (TrivialRandomObject<uint8_t>() & 0x1) {
-      (message->*set_field)(true);
-    } else {
-      (message->*set_field)(false);
-    }
   }
 }
 
@@ -174,7 +159,7 @@ void SetRandomInvalidGenericIdentity(EnclaveIdentity *generic_identity) {
     is_valid &= (identity_type == CODE_IDENTITY);
 
     std::vector<std::string> authority_types{kSgxAuthorizationAuthority,
-                                             kInvalidAuthorityType};
+                                        kInvalidAuthorityType};
     std::string authority_type = RandomSelect(authority_types);
     generic_identity->mutable_description()->set_authority_type(authority_type);
     is_valid &= (authority_type == kSgxAuthorizationAuthority);

@@ -37,38 +37,20 @@ class AddrinfoTestEnclave : public EnclaveTestCase {
                     "addrinfo test input use addrinfo hints not found");
     }
 
-    AddrInfoTestInput::TestMode mode =
-        input.GetExtension(addrinfo_test_input).mode();
-
-    switch (mode) {
-      case AddrInfoTestInput::NO_HINTS:
-        return AddrInfoTest_NoHints();
-      case AddrInfoTestInput::UNSPEC_HINTS:
-        return AddrInfoTest_UnspecHints();
-      case AddrInfoTestInput::IP_HINTS:
-        return AddrInfoTest_IpHints();
-      default:
-        return Status(error::GoogleError::INTERNAL,
-                      "unknown addrinfo test mode");
+    bool use_addrinfo_hints =
+        input.GetExtension(addrinfo_test_input).use_addrinfo_hints();
+    if (use_addrinfo_hints) {
+      return AddrInfoTest_Hints();
+    } else {
+      return AddrInfoTest_NoHints();
     }
   }
 
  private:
   bool VerifyLocalHostAddrInfoCanonname(const struct addrinfo *info) {
-    // The first of the addrinfo structures should point to the canonical name
-    // of the host. Verify that there's at least one struct and that the host
-    // name in it is correct.
-    if (info == nullptr) {
-      LOG(ERROR) << "No addrinfo returned!";
-      return false;
-    }
-    if (info->ai_canonname == nullptr) {
-      LOG(ERROR) << "No canonname returned!";
-      return false;
-    }
-    if (!strstr(info->ai_canonname, "localhost")) {
-      LOG(ERROR) << "Unexpected canon hostname " << info->ai_canonname;
-      return false;
+    for (const struct addrinfo *i = info; i != nullptr; i = i->ai_next) {
+      // Check addrinfo canonname contains string "localhost"
+      if (!strstr(i->ai_canonname, "localhost")) return false;
     }
     return true;
   }
@@ -113,30 +95,7 @@ class AddrinfoTestEnclave : public EnclaveTestCase {
     return Status::OkStatus();
   }
 
-  Status AddrInfoTest_UnspecHints() {
-    struct addrinfo *info = nullptr;
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;  // Should allow any address family
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_CANONNAME;  // return canonical names in addrinfo
-    if (!GetAddrInfoForLocalHost(&hints, &info)) {
-      return Status(error::GoogleError::INTERNAL,
-                    "getaddrinfo() system call failed");
-    }
-    if (!VerifyLocalHostAddrInfoAddress(info)) {
-      return Status(error::GoogleError::INTERNAL,
-                    "getaddrinfo() returned incorrect address string");
-    }
-    if (!VerifyLocalHostAddrInfoCanonname(info)) {
-      return Status(error::GoogleError::INTERNAL,
-                    "getaddrinfo() returned incorrect canonical name");
-    }
-    freeaddrinfo(info);
-    return Status::OkStatus();
-  }
-
-  Status AddrInfoTest_IpHints() {
+  Status AddrInfoTest_Hints() {
     struct addrinfo *info = nullptr;
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));

@@ -25,14 +25,12 @@ exports_files([
     "patch_repository.bzl",
     "proto.bzl",
     "sgx_deps.bzl",
-    "sim_enclave.bzl",
 ])
 
 load(
     "//asylo/bazel:asylo.bzl",
     "cc_enclave_test",
     "embed_enclaves",
-    "ASYLO_ALL_BACKENDS",
 )
 load("//asylo/bazel:proto.bzl", "asylo_proto_library")
 load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
@@ -61,13 +59,11 @@ cc_library(
     testonly = 1,
     srcs = ["test_shim_enclave.cc"],
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     visibility = ["//visibility:public"],
     deps = [
         ":test_shim_enclave_proto_cc",
         "//asylo/test/util:enclave_test_application",
         "//asylo/test/util:test_flags",
-        "@com_github_gflags_gflags//:gflags_nothreads",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -115,6 +111,5 @@ sh_test(
         ":embed_enclaves_test_binary",
         "//asylo/test/util:sample_text",
     ],
-    toolchains = ["@bazel_tools//tools/cpp:current_cc_toolchain"],
-    deps = ["//asylo/test/util:shell_testing"],
+    tags = ["noregression"],
 )

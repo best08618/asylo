@@ -22,8 +22,6 @@
 #include <vector>
 
 #include "absl/strings/str_cat.h"
-#include "absl/types/span.h"
-#include "asylo/crypto/sha256_hash.h"
 #include "asylo/crypto/util/byte_container_util.h"
 #include "asylo/crypto/util/bytes.h"
 #include "asylo/identity/identity.pb.h"
@@ -41,8 +39,6 @@ namespace asylo {
 namespace sgx {
 namespace internal {
 
-using experimental::AeadCryptor;
-
 const char *const kSgxLocalSecretSealerRootName = "SGX";
 
 Status ParseKeyGenerationParamsFromSealedSecretHeader(
@@ -50,27 +46,32 @@ Status ParseKeyGenerationParamsFromSealedSecretHeader(
     CipherSuite *cipher_suite, CodeIdentityExpectation *sgx_expectation) {
   const SealingRootInformation &root_info = header.root_info();
   if (root_info.sealing_root_type() != LOCAL) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
+    return Status(::asylo::error::GoogleError::INVALID_ARGUMENT,
                   "Incorrect sealing_root_type");
   }
   if (root_info.sealing_root_name() != kSgxLocalSecretSealerRootName) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
+    return Status(::asylo::error::GoogleError::INVALID_ARGUMENT,
                   "Incorrect sealing_root_name");
   }
   SealedSecretAdditionalInfo info;
   if (!info.ParseFromString(root_info.additional_info())) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
+    return Status(::asylo::error::GoogleError::INVALID_ARGUMENT,
                   "Could not parse additional_info");
   }
   if (info.cpusvn().size() != cpusvn->size()) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
+    return Status(::asylo::error::GoogleError::INVALID_ARGUMENT,
                   "Incorrect cpusvn size");
   }
   cpusvn->assign(info.cpusvn().data(), info.cpusvn().size());
-  ASYLO_ASSIGN_OR_RETURN(*cipher_suite,
-                         ParseCipherSuiteFromSealedSecretHeader(header));
+  if (!CipherSuite_IsValid(info.cipher_suite()) ||
+      info.cipher_suite() == UNKNOWN_CIPHER_SUITE) {
+    return Status(::asylo::error::GoogleError::INVALID_ARGUMENT,
+                  "Unsupported cipher suite");
+  }
+  *cipher_suite = info.cipher_suite();
   if (header.client_acl().item_case() != IdentityAclPredicate::kExpectation) {
-    return Status(error::GoogleError::INVALID_ARGUMENT, "Malformed client_acl");
+    return Status(::asylo::error::GoogleError::INVALID_ARGUMENT,
+                  "Malformed client_acl");
   }
   const EnclaveIdentityExpectation &generic_expectation =
       header.client_acl().expectation();
@@ -81,7 +82,7 @@ Status ParseKeyGenerationParamsFromSealedSecretHeader(
                          MatchIdentityToExpectation(GetSelfIdentity()->identity,
                                                     *sgx_expectation));
   if (!result) {
-    return Status(error::GoogleError::PERMISSION_DENIED,
+    return Status(::asylo::error::GoogleError::PERMISSION_DENIED,
                   "Identity of the current enclave does not match the ACL");
   }
   return Status::OkStatus();
@@ -131,7 +132,6 @@ Status GenerateCryptorKey(CipherSuite cipher_suite, const std::string &key_id,
 
   size_t remaining_key_bytes = key_size;
   size_t key_subscript = 0;
-  Sha256Hash hasher;
   while (remaining_key_bytes > 0) {
     std::vector<uint8_t> key_info;
     // Build a key_info string that uniquely and unambiguously encodes
@@ -145,14 +145,13 @@ Status GenerateCryptorKey(CipherSuite cipher_suite, const std::string &key_id,
     static_assert(decltype(req->keyid)::size() == SHA256_DIGEST_LENGTH,
                   "KEYREQUEST.KEYID field has unexpected size");
 
-    hasher.Init();
-    hasher.Update(key_info);
-    std::vector<uint8_t> digest;
-    hasher.CumulativeHash(&digest);
-    req->keyid.assign(digest);
+    SHA256(key_info.data(), key_info.size(), req->keyid.data());
 
     AlignedHardwareKeyPtr hardware_key;
-    ASYLO_RETURN_IF_ERROR(GetHardwareKey(*req, hardware_key.get()));
+    if (!GetHardwareKey(*req, hardware_key.get())) {
+      return Status(::asylo::error::GoogleError::INTERNAL,
+                    "Could not get required hardware key");
+    }
     size_t copy_size = std::min(hardware_key->size(), remaining_key_bytes);
     remaining_key_bytes -= copy_size;
     std::copy(hardware_key->cbegin(), hardware_key->cbegin() + copy_size,
@@ -160,69 +159,6 @@ Status GenerateCryptorKey(CipherSuite cipher_suite, const std::string &key_id,
     ++key_subscript;
   }
   return Status::OkStatus();
-}
-
-StatusOr<std::unique_ptr<AeadCryptor>> MakeCryptor(CipherSuite cipher_suite,
-                                                   ByteContainerView key) {
-  switch (cipher_suite) {
-    case sgx::AES256_GCM_SIV:
-      return AeadCryptor::CreateAesGcmSivCryptor(key);
-    case sgx::UNKNOWN_CIPHER_SUITE:
-    default:
-      return Status(error::GoogleError::INVALID_ARGUMENT,
-                    "Unsupported cipher suite");
-  }
-}
-
-Status Seal(AeadCryptor *cryptor, ByteContainerView secret,
-            ByteContainerView additional_data, SealedSecret *sealed_secret) {
-  std::vector<uint8_t> ciphertext(secret.size() + cryptor->MaxSealOverhead());
-  std::vector<uint8_t> iv(cryptor->NonceSize());
-
-  size_t ciphertext_size = 0;
-  ASYLO_RETURN_IF_ERROR(
-      cryptor->Seal(secret, additional_data, absl::MakeSpan(iv),
-                    absl::MakeSpan(ciphertext), &ciphertext_size));
-
-  sealed_secret->set_secret_ciphertext(ciphertext.data(), ciphertext_size);
-  sealed_secret->set_iv(iv.data(), iv.size());
-
-  return Status::OkStatus();
-}
-
-Status Open(AeadCryptor *cryptor, const SealedSecret &sealed_secret,
-            ByteContainerView additional_data,
-            CleansingVector<uint8_t> *secret) {
-  secret->resize(sealed_secret.secret_ciphertext().size());
-  size_t plaintext_size = 0;
-  ASYLO_RETURN_IF_ERROR(cryptor->Open(
-      sealed_secret.secret_ciphertext(), additional_data, sealed_secret.iv(),
-      absl::MakeSpan(*secret), &plaintext_size));
-  secret->resize(plaintext_size);
-  return Status::OkStatus();
-}
-
-StatusOr<CipherSuite> ParseCipherSuiteFromSealedSecretHeader(
-    const SealedSecretHeader &header) {
-  SealedSecretAdditionalInfo info;
-  if (!info.ParseFromString(header.root_info().additional_info())) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
-                  "Could not parse additional_info");
-  }
-  if (info.cipher_suite() == UNKNOWN_CIPHER_SUITE) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
-                  "Unsupported cipher suite");
-  }
-  return info.cipher_suite();
-}
-
-AeadScheme CipherSuiteToAeadScheme(CipherSuite cipher_suite) {
-  switch (cipher_suite) {
-    case sgx::AES256_GCM_SIV:
-      return AeadScheme::AES256_GCM_SIV;
-    default:
-      return AeadScheme::UNKNOWN_AEAD_SCHEME;
-  }
 }
 
 }  // namespace internal

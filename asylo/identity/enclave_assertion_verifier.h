@@ -78,8 +78,7 @@ class EnclaveAssertionVerifier : public EnclaveAssertionAuthority {
   ///         successfully. Returns a non-OK Status if this verifier is not
   ///         initialized or if an internal error occurs while attempting the
   ///         operation.
-  virtual Status Verify(const std::string &user_data,
-                        const Assertion &assertion,
+  virtual Status Verify(const std::string &user_data, const Assertion &assertion,
                         EnclaveIdentity *peer_identity) const = 0;
 };
 

@@ -154,9 +154,7 @@ struct StringCtor {
 struct StringVectorCtor {
   using value_type = std::vector<std::string>;
 
-  std::vector<std::string> operator()() {
-    return {kStringElement, kErrorMessage};
-  }
+  std::vector<std::string> operator()() { return {kStringElement, kErrorMessage}; }
 };
 
 bool operator==(const Foo &lhs, const Foo &rhs) {
@@ -183,7 +181,7 @@ typedef ::testing::Types<IntCtor, FooCtor, StringCtor, StringVectorCtor,
                          HeapAllocatedObjectCtor>
     TestTypes;
 
-TYPED_TEST_SUITE(StatusOrTest, TestTypes);
+TYPED_TEST_CASE(StatusOrTest, TestTypes);
 
 // Verify that the default constructor for StatusOr constructs an object with a
 // non-ok status.

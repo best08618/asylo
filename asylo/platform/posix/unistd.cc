@@ -22,7 +22,6 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "asylo/platform/arch/include/trusted/fork.h"
 #include "asylo/platform/arch/include/trusted/host_calls.h"
 #include "asylo/platform/core/trusted_global_state.h"
 #include "asylo/platform/posix/io/io_manager.h"
@@ -51,11 +50,7 @@ int symlink(const char *path1, const char *path2) {
   return IOManager::GetInstance().SymLink(path1, path2);
 }
 
-int pipe(int pipefd[2]) { return IOManager::GetInstance().Pipe(pipefd, 0); }
-
-int pipe2(int pipefd[2], int flags) {
-  return IOManager::GetInstance().Pipe(pipefd, flags);
-}
+int pipe(int pipefd[2]) { return IOManager::GetInstance().Pipe(pipefd); }
 
 int gethostname(char *name, size_t len) {
   asylo::StatusOr<const asylo::EnclaveConfig *> config_result =
@@ -192,14 +187,7 @@ pid_t setsid() { return enc_untrusted_setsid(); }
 
 // The functions below are prefixed with |enclave_|, as they are plumbed in from
 // newlib.
-int enclave_getpid() {
-  int pid = enc_untrusted_getpid();
-  if (pid == 0) {
-    enc_untrusted_puts("FATAL ERROR: Host returned 0 from getpid()");
-    abort();
-  }
-  return pid;
-}
+int enclave_getpid() { return enc_untrusted_getpid(); }
 
 int enclave_fstat(int fd, struct stat *st) {
   return IOManager::GetInstance().FStat(fd, st);
@@ -217,32 +205,6 @@ int truncate(const char *path, off_t length) {
 
 int ftruncate(int fd, off_t length) {
   return IOManager::GetInstance().FTruncate(fd, length);
-}
-
-void enclave_exit(int rc) {
-  enc_untrusted__exit(rc);
-}
-
-pid_t enclave_fork() {
-  asylo::StatusOr<const asylo::EnclaveConfig *> config_result =
-      asylo::GetEnclaveConfig();
-
-  if (!config_result.ok()) {
-    errno = EFAULT;
-    return -1;
-  }
-
-  const asylo::EnclaveConfig *config = config_result.ValueOrDie();
-  if (!config->has_enable_fork()) {
-    errno = EFAULT;
-    return -1;
-  }
-  if (!config->enable_fork()) {
-    errno = ENOSYS;
-    return -1;
-  }
-
-  return asylo::enc_fork(asylo::GetEnclaveName().c_str(), *config);
 }
 
 }  // extern "C"

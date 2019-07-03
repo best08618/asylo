@@ -16,36 +16,8 @@
 
 """Macro definitions for Asylo testing."""
 
-load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 load("@com_google_asylo_backend_provider//:enclave_info.bzl", "EnclaveInfo")
 load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
-
-# Backend tags are used by testing infrastructure to determine which platform
-# flags to provide when running tests or building targets.
-#
-# For example, the enclave_runtime and posix targets can be built with
-# any enclave backend, so their tags include ASYLO_ALL_BACKENDS.
-# The trusted_sgx target is SGX-only, so its only backend tag is asylo-sgx.
-ASYLO_ALL_BACKENDS = [
-    "asylo-sgx",
-    "asylo-sim",
-]
-
-def _backend_tags(tags):
-    """Returns the sublist of tags containing Asylo backends.
-
-    Args:
-      tags: A list of strings for a targets `tags` field.
-
-    Returns:
-      list: The tags in `tags` that correspond to Asylo backends, in the same
-            order that they appeared in the input.
-    """
-    backend_tags = []
-    for backend in ASYLO_ALL_BACKENDS:
-        if backend in tags:
-            backend_tags.append(backend)
-    return backend_tags
 
 def _parse_label(label):
     """Parse a label into (package, name).
@@ -187,7 +159,7 @@ def _enclave_runner_script_impl(ctx):
     user-provided arguments. Performs string interpolation over the arguments, to
     populate paths to enclaves.
 
-    Args:
+    Arguments:
       ctx: A bazel rule context
 
     Returns:
@@ -278,11 +250,6 @@ def _make_enclave_runner_rule(test = False):
         executable = not test,
         test = test,
         attrs = {
-            "data": attr.label_list(allow_files = True),
-            "enclaves": attr.label_keyed_string_dict(
-                allow_files = True,
-                providers = [EnclaveInfo],
-            ),
             "loader": attr.label(
                 executable = True,
                 # If the loader contains embedded enclaves, then it needs to be
@@ -295,6 +262,11 @@ def _make_enclave_runner_rule(test = False):
                 allow_single_file = True,
             ),
             "loader_args": attr.string_list(),
+            "enclaves": attr.label_keyed_string_dict(
+                allow_files = True,
+                providers = [EnclaveInfo],
+            ),
+            "data": attr.label_list(allow_files = True),
         },
     )
 
@@ -349,7 +321,6 @@ def embed_enclaves(name, elf_file, enclaves, **kwargs):
             objcopy_flags = " ".join(objcopy_flags),
             elf_file = elf_file_from_host,
         ),
-        toolchains = ["@bazel_tools//tools/cpp:current_cc_toolchain"],
         **kwargs
     )
 
@@ -406,152 +377,10 @@ def enclave_loader(
 
     _enclave_runner_script(
         name = name,
-        testonly = kwargs.get("testonly", 0),
         loader = loader_name,
         loader_args = loader_args,
         enclaves = _invert_enclave_name_mapping(enclaves),
-        tags = kwargs.get("tags", []),
         data = kwargs.get("data", []),
-    )
-
-def sim_enclave_loader(
-        name,
-        enclaves = {},
-        embedded_enclaves = {},
-        loader_args = [],
-        **kwargs):
-    """Thin wrapper around enclave loader, adds necessary linkopts and testonly=1
-
-    Args:
-      name: Name for build target.
-      enclaves: Dictionary from enclave names to target dependencies. The
-        dictionary must be injective. This dictionary is used to format each
-        string in `loader_args` after each enclave target is interpreted as the
-        path to its output binary.
-      embedded_enclaves: Dictionary from ELF section names (that do not start
-        with '.') to target dependencies. Each target in the dictionary is
-        embedded in the loader binary under the corresponding ELF section.
-      loader_args: List of arguments to be passed to `loader`. Arguments may
-        contain {enclave_name}-style references to keys from the `enclaves` dict,
-        each of which will be replaced with the path to the named enclave.
-      **kwargs: cc_binary arguments.
-    """
-    linkopts = kwargs.pop("linkopts", [])
-    if "-rdynamic" not in linkopts:
-        linkopts += ["-rdynamic"]
-    if "-ldl" not in linkopts:
-        linkopts += ["-ldl"]
-
-    enclave_loader(
-        name,
-        enclaves = enclaves,
-        embedded_enclaves = embedded_enclaves,
-        loader_args = loader_args,
-        linkopts = linkopts,
-        testonly = 1,
-        **kwargs
-    )
-
-# The section to embed the application enclave in.
-_APPLICATION_WRAPPER_ENCLAVE_SECTION = "enclave"
-
-def cc_enclave_binary(
-        name,
-        enclave_config = "",
-        application_library_linkstatic = True,
-        **kwargs):
-    """Creates a cc_binary that runs an application inside an enclave.
-
-    Mostly compatible with the cc_binary interface. The following options are
-    not supported:
-
-      * linkshared
-      * malloc
-      * stamp
-
-    Usage of unsupported aspects of the cc_binary interface will result in build
-    failures.
-
-    Args:
-      name: Name for the build target.
-      enclave_config: An sgx_enclave_configuration target to be passed to the
-          enclave. Optional.
-      application_library_linkstatic: When building the application as a
-          library, whether to allow that library to be statically linked. See
-          the `linkstatic` option on `cc_library`. Optional.
-      **kwargs: cc_binary arguments.
-    """
-    application_library_name = name + "_application_library"
-    enclave_name = name + "_application_enclave.so"
-
-    loader_kwargs = {}
-
-    # The "args" attribute should be moved to the loader since cc_library does
-    # not support it. The whole-application wrapper contains all the machinery
-    # necessary to propagate the arguments.
-    if "args" in kwargs:
-        loader_kwargs["args"] = kwargs.pop("args")
-
-    # Wrapping shared libraries in enclaves is not supported.
-    if "linkshared" in kwargs:
-        fail("linkshared option not supported in cc_enclave_binary")
-
-    # "linkstatic" has a different meaning on cc_library than on cc_binary. If
-    # a user asks for it on cc_enclave_binary, then the loader should get the
-    # attribute.
-    if "linkstatic" in kwargs:
-        loader_kwargs["linkstatic"] = kwargs.pop("linkstatic")
-
-    # Changing the enclave malloc() implementation is currently not supported.
-    if "malloc" in kwargs:
-        fail("malloc option not supported in cc_enclave_binary")
-
-    # Licenses should be visibile from the user-visible rule, i.e. the loader.
-    if "output_licenses" in kwargs:
-        loader_kwargs["output_licenses"] = kwargs.pop("output_licenses")
-
-    # "stamp" currently not supported.
-    if "stamp" in kwargs:
-        fail("stamp option not supported in cc_enclave_binary")
-
-    # The user probably wants their tags applied to the loader.
-    loader_kwargs["tags"] = kwargs.pop("tags", [])
-    if "asylo-sgx" not in loader_kwargs["tags"]:
-        loader_kwargs["tags"] += ["asylo-sgx"]
-
-    native.cc_library(
-        name = application_library_name,
-        linkstatic = application_library_linkstatic,
-        **kwargs
-    )
-
-    enclave_kwargs = {}
-    if enclave_config:
-        enclave_kwargs["config"] = enclave_config
-
-    sgx_enclave(
-        name = enclave_name,
-        copts = ASYLO_DEFAULT_COPTS,
-        tags = ["asylo-sgx"],
-        deps = [
-            ":" + application_library_name,
-            "//asylo/bazel/application_wrapper:application_wrapper_enclave_core",
-        ],
-        **enclave_kwargs
-    )
-
-    enclave_loader(
-        name = name,
-        srcs = ["//asylo/bazel/application_wrapper:application_wrapper_driver.cc"],
-        embedded_enclaves = {_APPLICATION_WRAPPER_ENCLAVE_SECTION: ":" + enclave_name},
-        copts = ASYLO_DEFAULT_COPTS,
-        deps = [
-            "//asylo/bazel/application_wrapper:application_wrapper_driver_main",
-            "//asylo:enclave_client",
-            "//asylo/util:logging",
-            "//asylo/util:status",
-        ],
-        **loader_kwargs
     )
 
 def sim_enclave(name, **kwargs):
@@ -574,7 +403,7 @@ def enclave_test(
         test_args = [],
         tags = [],
         **kwargs):
-    """Build target for testing one or more enclaves.
+    """Build target for testing one or more instances of 'sgx_enclave'.
 
     Creates a cc_test for a given enclave. Passes flags according to
     `test_args`, which can contain references to targets from `enclaves`.
@@ -585,22 +414,22 @@ def enclave_test(
         dictionary must be injective. This dictionary is used to format each
         string in `test_args` after each enclave target is interpreted as the
         path to its output binary.
-     embedded_enclaves: Dictionary from ELF section names (that do not start
-       with '.') to target dependencies. Each target in the dictionary is
-       embedded in the test binary under the corresponding ELF section.
-     test_args: List of arguments to be passed to the test binary. Arguments may
-       contain {enclave_name}-style references to keys from the `enclaves` dict,
-       each of which will be replaced with the path to the named enclave. This
-       replacement only occurs for non-embedded enclaves.
-     tags: Label attached to this test to allow for querying.
-     **kwargs: cc_test arguments.
+      embedded_enclaves: Dictionary from ELF section names (that do not start
+        with '.') to target dependencies. Each target in the dictionary is
+        embedded in the test binary under the corresponding ELF section.
+      test_args: List of arguments to be passed to the test binary. Arguments may
+        contain {enclave_name}-style references to keys from the `enclaves` dict,
+        each of which will be replaced with the path to the named enclave. This
+        replacement only occurs for non-embedded enclaves.
+      tags: Label attached to this test to allow for querying.
+      **kwargs: cc_test arguments.
 
     This macro creates three build targets:
-     1) name: sh_test that runs the enclave_test.
-     2) name_driver: cc_test used as test loader in `name`. This is a normal
-                     native cc_test. It cannot be directly run because there is
-                     an undeclared dependency on enclave.
-     3) name_host_driver: genrule that builds name_driver with host crosstool.
+      1) name: sh_test that runs the enclave_test.
+      2) name_driver: cc_test used as test loader in `name`. This is a normal
+                      native cc_test. It cannot be directly run because there is
+                      an undeclared dependency on enclave.
+      3) name_host_driver: genrule that builds name_driver with host crosstool.
     """
 
     test_name = name + "_driver"
@@ -636,32 +465,6 @@ def enclave_test(
         size = size,
         testonly = 1,
         tags = ["enclave_test"] + tags,
-    )
-
-def sim_enclave_test(
-        name,
-        **kwargs):
-    """Thin wrapper around enclave test, adds 'asylo-sim' tag and necessary linkopts
-
-    Args:
-      name: enclave_test name
-      **kwargs: same as enclave_test kwargs
-
-    """
-
-    tags = kwargs.pop("tags", [])
-    if "asylo-sim" not in tags:
-        tags += ["asylo-sim"]
-
-    linkopts = kwargs.pop("linkopts", [])
-    if "-rdynamic" not in linkopts:
-        linkopts += ["-rdynamic"]
-
-    enclave_test(
-        name,
-        tags = tags,
-        linkopts = linkopts,
-        **kwargs
     )
 
 def cc_test(
@@ -811,9 +614,6 @@ def cc_enclave_test(
     else:
         loader_args.append("--notest_in_initialize")
 
-    if "asylo-sgx" not in tags:
-        tags = tags + ["asylo-sgx"]
-
     # Execute the gtest enclave using the gtest enclave runner
     _enclave_runner_test(
         name = name,
@@ -823,22 +623,4 @@ def cc_enclave_test(
         data = kwargs.get("data", []),
         testonly = 1,
         tags = ["enclave_test"] + tags,
-    )
-
-def sgx_enclave_test(name, srcs, **kwargs):
-    """Build target for testing one or more instances of 'sgx_enclave'.
-
-    This macro invokes enclave_test with the "asylo-sgx" tag added.
-
-    Args:
-      name: The target name.
-      srcs: Same as cc_test srcs.
-      **kwargs: enclave_test arguments.
-    """
-    tags = kwargs.pop("tags", [])
-    enclave_test(
-        name,
-        srcs = srcs,
-        tags = tags + ["asylo-sgx"],
-        **kwargs
     )

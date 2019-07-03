@@ -19,13 +19,13 @@
 #ifndef ASYLO_CRYPTO_UTIL_TRIVIAL_OBJECT_UTIL_H_
 #define ASYLO_CRYPTO_UTIL_TRIVIAL_OBJECT_UTIL_H_
 
-#include <openssl/rand.h>
 #include <type_traits>
 
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "asylo/util/status.h"
+#include <openssl/rand.h>
 
 namespace asylo {
 
@@ -46,13 +46,13 @@ Status SetTrivialObjectFromHexString(absl::string_view view, T *obj) {
     return Status(
         error::GoogleError::INVALID_ARGUMENT,
         absl::StrCat("The size of the output container: ", sizeof(T),
-                     " must be the size of the string / 2: ", view.size() / 2));
+                     " must be the size of the std::string / 2: ", view.size() / 2));
   }
   for (auto ch : view) {
     if (std::isxdigit(ch) == 0) {
       return Status(
           error::GoogleError::INVALID_ARGUMENT,
-          "The given string must be made of only valid hex characters");
+          "The given std::string must be made of only valid hex characters");
     }
   }
   absl::HexStringToBytes(view).copy(reinterpret_cast<char *>(obj),

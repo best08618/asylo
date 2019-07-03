@@ -24,7 +24,7 @@ licenses(["notice"])  # Apache v2.0
 load("//asylo/bazel:asylo.bzl", "cc_test")
 load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 load("//asylo/bazel:proto.bzl", "asylo_proto_library")
-load("@io_bazel_rules_go//go:def.bzl", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary")
 
 package(default_visibility = [
     "//asylo/grpc/auth:__subpackages__",
@@ -62,7 +62,6 @@ cc_library(
         "@com_github_grpc_grpc//:gpr_base",
         "@com_github_grpc_grpc//:grpc_base_c",
         "@com_github_grpc_grpc//:grpc_secure",
-        "@com_github_grpc_grpc//:ref_counted_ptr",
         "@com_github_grpc_grpc//:tsi_interface",
         "@com_google_absl//absl/memory",
         "@com_google_protobuf//:protobuf_lite",
@@ -225,7 +224,6 @@ cc_library(
     srcs = ["server_ekep_handshaker.cc"],
     hdrs = ["server_ekep_handshaker.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    visibility = ["//asylo:implementation"],
     deps = [
         ":ekep_crypto",
         ":ekep_error_space",
@@ -249,7 +247,6 @@ cc_library(
     srcs = ["client_ekep_handshaker.cc"],
     hdrs = ["client_ekep_handshaker.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    visibility = ["//asylo:implementation"],
     deps = [
         ":ekep_crypto",
         ":ekep_error_space",
@@ -310,13 +307,9 @@ asylo_proto_library(
 )
 
 # Generates test vectors for EKEP secret derivation.
-# Note that the test just makes sure this file builds and runs, but doesn't
-# actually check anything. However, one can manually run this target in order to
-# derive the test vectors used in other tests.
-go_test(
-    name = "generate_test_vectors_test",
-    size = "small",
-    srcs = ["generate_test_vectors_test.go"],
+go_binary(
+    name = "generate_test_vectors",
+    srcs = ["generate_test_vectors.go"],
     deps = [
         "@com_github_golang_crypto//:curve25519",
         "@com_github_golang_crypto//:hkdf",

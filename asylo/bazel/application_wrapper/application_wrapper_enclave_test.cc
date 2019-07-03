@@ -31,8 +31,8 @@
 #include "asylo/client.h"
 #include "asylo/enclave_manager.h"
 #include "gflags/gflags.h"
+#include "asylo/test/util/pipe.h"
 #include "asylo/test/util/status_matchers.h"
-#include "asylo/util/fd_utils.h"
 #include "asylo/util/status.h"
 
 DEFINE_string(enclave_section, "", "The ELF section to load the enclave from");
@@ -74,10 +74,6 @@ class ApplicationWrapperEnclaveTest : public ::testing::Test {
   static void SetUpTestCase() {
     EnclaveManager::Configure(EnclaveManagerOptions());
     ASYLO_ASSERT_OK_AND_ASSIGN(manager_, EnclaveManager::Instance());
-  }
-
-  void SetUp() override {
-    ASYLO_ASSERT_OK_AND_ASSIGN(enclave_stdout_, Pipe::CreatePipe());
   }
 
   // Loads the enclave with the given command-line arguments and directs its
@@ -130,8 +126,7 @@ class ApplicationWrapperEnclaveTest : public ::testing::Test {
                    const EnclaveOutput &enclave_output) {
     // Read the entirety of the enclave's stdout.
     std::string pipe_output;
-    ASYLO_ASSERT_OK(enclave_stdout_.CloseWriteFd());
-    ASYLO_ASSERT_OK_AND_ASSIGN(pipe_output, ReadAll(enclave_stdout_.read_fd()));
+    ASYLO_ASSERT_OK_AND_ASSIGN(pipe_output, enclave_stdout_.ReadUntilEof());
 
     // Check that the enclave's output to stdout matches |expected_stdout|.
     EXPECT_EQ(pipe_output, expected_stdout);
@@ -253,8 +248,7 @@ TEST_F(ApplicationWrapperEnclaveTest, FinalizeLogsWarningIfNoRun) {
   ASYLO_ASSERT_OK(LoadEnclave(/*argv=*/{kTestApplicationName}));
   ASYLO_EXPECT_OK(DestroyEnclave());
 
-  ASYLO_ASSERT_OK(enclave_stdout_.CloseWriteFd());
-  EXPECT_THAT(ReadAll(enclave_stdout_.read_fd()),
+  EXPECT_THAT(enclave_stdout_.ReadUntilEof(),
               IsOkAndHolds(HasSubstr(absl::StrCat(
                   kTestApplicationName,
                   " enclave finalizing before application has run"))));

@@ -80,21 +80,13 @@ enclave {
     // Invokes a utility ecall that enters the enclave to take a snapshot.
     // This is a private ecall because it should only be invoked by an
     // ocall(fork).
-    utility_tcs public int ecall_take_snapshot(
+    utility_tcs int ecall_take_snapshot(
 	[out] char **output,
 	[out] bridge_size_t *output_len);
 
     // Invokes a utility ecall that enters the enclave to restore it from a
     // snapshot.
     utility_tcs public int ecall_restore(
-        [user_check] const char *input,
-	bridge_size_t input_len,
-	[user_check] char **output,
-	[user_check] bridge_size_t *output_len);
-
-    // Invokes a utility ecall that enters the enclave to encrypt and transfer
-    // the snpashot key.
-    utility_tcs public int ecall_transfer_secure_snapshot_key(
         [in, size=input_len] const char *input,
 	bridge_size_t input_len,
 	[out] char **output,
@@ -110,10 +102,7 @@ enclave {
 
     int ocall_enc_untrusted_puts([in, string] const char *str) propagate_errno;
     void *ocall_enc_untrusted_malloc(bridge_size_t size) propagate_errno;
-    void **ocall_enc_untrusted_allocate_buffers(bridge_size_t count,
-        bridge_size_t size) propagate_errno;
-    void ocall_enc_untrusted_deallocate_free_list([user_check] void **free_list,
-        bridge_size_t count) propagate_errno;
+
     int ocall_enc_untrusted_open([in, string] const char *path_name,
                                  int flags, uint32_t mode) propagate_errno;
     int ocall_enc_untrusted_fcntl(int fd, int cmd, int64_t arg) propagate_errno;
@@ -134,8 +123,6 @@ enclave {
     //           Sockets                //
     //////////////////////////////////////
 
-    int ocall_enc_untrusted_socket(int domain, int type, int protocol)
-                                   propagate_errno;
     int ocall_enc_untrusted_connect(int sockfd,
                                     [in] const struct bridge_sockaddr *addr)
                                     propagate_errno;
@@ -278,9 +265,6 @@ enclave {
         [out, size=16/*sizeof(struct timespec)*/] struct bridge_timespec *tp)
         propagate_errno;
 
-    int ocall_enc_untrusted_getitimer(
-        enum TimerType which, [out] struct BridgeITimerVal *bridge_curr_value) propagate_errno;
-
     int ocall_enc_untrusted_setitimer(
         enum TimerType which, [in] struct BridgeITimerVal *bridge_new_value,
         [out] struct BridgeITimerVal *bridge_old_value) propagate_errno;
@@ -352,18 +336,10 @@ enclave {
     //            unistd.h              //
     //////////////////////////////////////
 
-    int ocall_enc_untrusted_pipe2([out] int pipefd[2], int flags)
-        propagate_errno;
+    int ocall_enc_untrusted_pipe([out] int pipefd[2]) propagate_errno;
     int64_t ocall_enc_untrusted_sysconf(enum SysconfConstants name)
         propagate_errno;
     uint32_t ocall_enc_untrusted_sleep(uint32_t seconds);
-    void ocall_enc_untrusted__exit(int rc);
-    pid_t ocall_enc_untrusted_fork(
-        [in, string]const char *enclave_name,
-	[in, size = config_len] const char *config,
-	bridge_size_t config_len,
-	bool restore_snapshot)
-	allow(ecall_take_snapshot, ecall_restore) propagate_errno;
 
     //////////////////////////////////////
     //           utime.h                //

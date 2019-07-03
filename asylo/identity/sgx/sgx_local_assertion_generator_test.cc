@@ -37,7 +37,7 @@
 #include "asylo/identity/sgx/identity_key_management_structs.h"
 #include "asylo/identity/sgx/local_assertion.pb.h"
 #include "asylo/identity/sgx/self_identity.h"
-#include "asylo/identity/sgx/sgx_local_assertion_authority_config.pb.h"
+#include "asylo/platform/core/trusted_global_state.h"
 #include "asylo/test/util/proto_matchers.h"
 #include "asylo/test/util/status_matchers.h"
 
@@ -46,10 +46,8 @@ namespace {
 
 using ::testing::Not;
 
-constexpr char kBadConfig[] = "Not a real config";
-
 constexpr char kLocalAttestationDomain1[] = "A 16-byte string";
-constexpr char kLocalAttestationDomain2[] = "A superb string!";
+constexpr char kLocalAttestationDomain2[] = "A superb std::string!";
 
 constexpr char kBadAuthority[] = "Foobar Assertion Authority";
 constexpr char kBadAdditionalInfo[] = "Invalid additional info";
@@ -61,9 +59,10 @@ const char kUserData[] = "User data";
 class SgxLocalAssertionGeneratorTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    SgxLocalAssertionAuthorityConfig authority_config;
-    authority_config.set_attestation_domain(kLocalAttestationDomain1);
-    ASSERT_TRUE(authority_config.SerializeToString(&config_));
+    EnclaveConfig enclave_config;
+    enclave_config.mutable_host_config()->set_local_attestation_domain(
+        kLocalAttestationDomain1);
+    SetEnclaveConfig(enclave_config);
   }
 
   // Sets |description| to the assertion description handled by the SGX local
@@ -119,7 +118,7 @@ class SgxLocalAssertionGeneratorTest : public ::testing::Test {
   }
 
   // The config used to initialize a SgxLocalAssertionGenerator.
-  std::string config_;
+  const std::string config_;
 };
 
 // Verify that the SgxLocalAssertionGenerator can be found in the
@@ -140,18 +139,12 @@ TEST_F(SgxLocalAssertionGeneratorTest, InitializeSucceedsOnce) {
   EXPECT_THAT(generator.Initialize(config_), Not(IsOk()));
 }
 
-// Verify that Initialize() fails if the authority config cannot be parsed.
-TEST_F(SgxLocalAssertionGeneratorTest, InitializeFailsWithUnparsableConfig) {
-  SgxLocalAssertionGenerator generator;
-  EXPECT_THAT(generator.Initialize(kBadConfig), Not(IsOk()));
-}
-
 // Verify that Initialize() fails if local_attestation_domain is not set in the
-// authority config.
+// EnclaveConfig.
 TEST_F(SgxLocalAssertionGeneratorTest,
        InitializeFailsMissingAttestationDomain) {
-  SgxLocalAssertionAuthorityConfig authority_config;
-  ASSERT_TRUE(authority_config.SerializeToString(&config_));
+  EnclaveConfig enclave_config;
+  SetEnclaveConfig(enclave_config);
 
   SgxLocalAssertionGenerator generator;
   EXPECT_THAT(generator.Initialize(config_), Not(IsOk()));

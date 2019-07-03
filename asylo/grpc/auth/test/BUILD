@@ -43,25 +43,12 @@ cc_binary(
         "//asylo/grpc/auth/util:bridge_cpp_to_c",
         "//asylo/identity:enclave_assertion_authority_config_proto_cc",
         "//asylo/identity:init",
-        "//asylo/test/util:enclave_assertion_authority_configs",
+        "//asylo/identity/null_identity:null_identity_util",
+        "//asylo/platform/core:trusted_global_state",
         "@com_github_grpc_grpc//:gpr_base",
         "@com_github_grpc_grpc//:grpc_codegen",
-        "@com_github_grpc_grpc//:ref_counted_ptr",
         "@com_github_grpc_grpc//test/core/end2end:end2end_tests",
-        "@com_github_grpc_grpc//test/core/util:grpc_test_util_base",
-    ],
-)
-
-cc_library(
-    name = "mock_enclave_auth_context",
-    testonly = 1,
-    hdrs = ["mock_enclave_auth_context.h"],
-    visibility = ["//asylo:implementation"],
-    deps = [
-        "//asylo/grpc/auth:enclave_auth_context",
-        "//asylo/identity:identity_proto_cc",
-        "//asylo/util:status",
-        "@com_google_googletest//:gtest",
+        "@com_github_grpc_grpc//test/core/util:gpr_test_util",
     ],
 )
 

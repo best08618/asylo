@@ -23,8 +23,8 @@
 #include <gtest/gtest.h>
 #include "asylo/util/logging.h"
 #include "asylo/platform/common/time_util.h"
-#include "asylo/test/util/pthread_test_util.h"
 #include "asylo/test/util/status_matchers.h"
+#include "asylo/test/util/test_util.h"
 #include "asylo/util/status.h"
 
 namespace asylo {
@@ -35,26 +35,26 @@ TEST(EnclaveCondVar, IllegalPointer) {
   // pointers.
 
   // pthread_cond_init
-  EXPECT_EQ(pthread_cond_init(nullptr, nullptr), EFAULT);
+  ASSERT_EQ(pthread_cond_init(nullptr, nullptr), EINVAL);
 
   // pthread_cond_destroy
-  EXPECT_EQ(pthread_cond_destroy(nullptr), EFAULT);
+  ASSERT_EQ(pthread_cond_destroy(nullptr), EINVAL);
 
   // pthread_cond_wait
   pthread_mutex_t mu;
-  EXPECT_EQ(pthread_cond_wait(nullptr, &mu), EFAULT);
+  ASSERT_EQ(pthread_cond_wait(nullptr, &mu), EINVAL);
   pthread_cond_t cv;
-  EXPECT_EQ(pthread_cond_wait(&cv, nullptr), EFAULT);
+  ASSERT_EQ(pthread_cond_wait(&cv, nullptr), EINVAL);
 
   // pthread_cond_timedwait
-  EXPECT_EQ(pthread_cond_timedwait(nullptr, &mu, nullptr), EFAULT);
-  EXPECT_EQ(pthread_cond_timedwait(&cv, nullptr, nullptr), EFAULT);
+  ASSERT_EQ(pthread_cond_timedwait(nullptr, &mu, nullptr), EINVAL);
+  ASSERT_EQ(pthread_cond_timedwait(&cv, nullptr, nullptr), EINVAL);
 
   // pthread_cond_signal
-  EXPECT_EQ(pthread_cond_signal(nullptr), EFAULT);
+  ASSERT_EQ(pthread_cond_signal(nullptr), EINVAL);
 
   // pthread_cond_broadcast
-  EXPECT_EQ(pthread_cond_broadcast(nullptr), EFAULT);
+  ASSERT_EQ(pthread_cond_broadcast(nullptr), EINVAL);
 }
 
 // This test creates a typical "producer-consumer" pattern using the mutex and

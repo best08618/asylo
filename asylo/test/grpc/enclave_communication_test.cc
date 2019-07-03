@@ -23,7 +23,6 @@
 #include "asylo/grpc/util/enclave_server.pb.h"
 #include "asylo/test/grpc/client_enclave.pb.h"
 #include "asylo/test/grpc/messenger_server_impl.h"
-#include "asylo/test/util/enclave_assertion_authority_configs.h"
 #include "asylo/test/util/enclave_test_launcher.h"
 #include "asylo/test/util/status_matchers.h"
 #include "asylo/test/util/test_flags.h"
@@ -37,6 +36,7 @@ DEFINE_string(client_enclave_path, "", "Path to client enclave");
 DEFINE_string(server_enclave_path, "", "Path to server enclave");
 
 constexpr char kName[] = "Mellanie Rescorai";
+constexpr char kLocalAttestationDomain[] = "A unique attestation domain";
 
 // A test for gRPC communication between two enclaves.
 //
@@ -45,17 +45,15 @@ constexpr char kName[] = "Mellanie Rescorai";
 class EnclaveCommunicationTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // Set up a base EnclaveConfig for the client and the server.
     EnclaveConfig config;
     if (!FLAGS_test_tmpdir.empty()) {
       config.mutable_logging_config()->set_log_directory(FLAGS_test_tmpdir);
     }
 
-    // The client and server both use the same assertion authority configs.
-    *config.add_enclave_assertion_authority_configs() =
-        GetNullAssertionAuthorityTestConfig();
-    *config.add_enclave_assertion_authority_configs() =
-        GetSgxLocalAssertionAuthorityTestConfig();
+    // The client and server must have the same local attestation domain in
+    // order for SGX local attestation to work.
+    config.mutable_host_config()->set_local_attestation_domain(
+        kLocalAttestationDomain);
 
     ASSERT_THAT(SetUpServer(config), IsOk());
     ASSERT_THAT(SetUpClient(config), IsOk());
@@ -114,13 +112,8 @@ class EnclaveCommunicationTest : public ::testing::Test {
 
 TEST_F(EnclaveCommunicationTest, SimpleSynchronousRpc) {
   EnclaveInput input;
-  ClientEnclaveInput client_input;
-  client_input.set_server_address(server_address_);
-  client_input.set_rpc_input(kName);
-  // The client uses bidirectional SGX local attestation.
-  client_input.add_self_grpc_creds_options(SGX_LOCAL_GRPC_CREDENTIALS_OPTIONS);
-  client_input.add_peer_grpc_creds_options(SGX_LOCAL_GRPC_CREDENTIALS_OPTIONS);
-  *input.MutableExtension(client_enclave_input) = client_input;
+  input.SetExtension(server_address, server_address_);
+  input.SetExtension(rpc_input, kName);
   EnclaveOutput output;
   ASSERT_THAT(grpc_client_enclave_->EnterAndRun(input, &output), IsOk());
   EXPECT_EQ(output.GetExtension(rpc_result),

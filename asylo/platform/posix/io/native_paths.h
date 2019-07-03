@@ -29,7 +29,6 @@ namespace io {
 class IOContextNative : public IOManager::IOContext {
  public:
   explicit IOContextNative(int host_fd) : host_fd_(host_fd) {}
-
   ssize_t Read(void *buf, size_t count) override;
   ssize_t Write(const void *buf, size_t count) override;
   int LSeek(off_t offset, int whence) override;
@@ -63,10 +62,6 @@ class IOContextNative : public IOManager::IOContext {
  private:
   // Host file descriptor implementing this stream.
   int host_fd_;
-  bool CreateUntrustedBuffer(const struct iovec *iov,
-      int iovcnt, char **buf, int *size);
-  bool SerializeIov(const struct iovec *iov, int iovcnt,
-      char **buf, int *size);
 };
 
 // VirtualPathHandler implementation handling paths to be forwarded to the host.
@@ -84,7 +79,6 @@ class NativePathHandler : public io::IOManager::VirtualPathHandler {
   int Stat(const char *pathname, struct stat *stat_buffer) override;
   int LStat(const char *pathname, struct stat *stat_buffer) override;
   int Mkdir(const char *path, mode_t mode) override;
-  int Rename(const char *oldpath, const char *newpath) override;
   int Access(const char *path, int mode) override;
   int ChMod(const char *pathname, mode_t mode) override;
 };

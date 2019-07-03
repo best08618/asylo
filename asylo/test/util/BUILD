@@ -14,16 +14,16 @@
 # limitations under the License.
 #
 
-load("//asylo/bazel:asylo.bzl", "cc_test", "ASYLO_ALL_BACKENDS")
-load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
-load("//asylo/bazel:proto.bzl", "asylo_proto_library")
-load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
-
 licenses(["notice"])  # Apache v2.0
 
 # Enclave test infrastructure.
 
 package(default_visibility = ["//asylo:implementation"])
+
+load("//asylo/bazel:asylo.bzl", "cc_test")
+load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
+load("//asylo/bazel:proto.bzl", "asylo_proto_library")
+load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
 
 # Test helper that runs a subprocess and checks output.
 cc_library(
@@ -35,22 +35,23 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )
 
-# Functions for stress-testing pthreads.
+# Miscallaneous helper functions for tests.
 cc_library(
-    name = "pthread_test_util",
+    name = "test_util",
     testonly = 1,
-    srcs = ["pthread_test_util.cc"],
-    hdrs = ["pthread_test_util.h"],
+    srcs = ["test_util.cc"],
+    hdrs = ["test_util.h"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
+        "//asylo/crypto/util:bytes",
+        "//asylo/util:logging",
         "//asylo/util:status",
-        "@boringssl//:crypto",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
     ],
 )
 
@@ -109,7 +110,6 @@ cc_library(
     srcs = ["enclave_test_application.cc"],
     hdrs = ["enclave_test_application.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     visibility = ["//asylo:implementation"],
     deps = [
         ":test_string_proto_cc",
@@ -183,17 +183,19 @@ cc_library(
     ],
 )
 
-# A utility for collecting writes from file descriptors.
+# A utility for POSIX pipes. Intended to be used to read enclave stdout and
+# stderr.
 cc_library(
-    name = "output_collector",
+    name = "pipe",
     testonly = 1,
-    srcs = ["output_collector.cc"],
-    hdrs = ["output_collector.h"],
+    srcs = ["pipe.cc"],
+    hdrs = ["pipe.h"],
     copts = ASYLO_DEFAULT_COPTS,
+    visibility = ["//asylo:implementation"],
     deps = [
-        "//asylo/util:fd_utils",
         "//asylo/util:logging",
         "//asylo/util:status",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -232,6 +234,7 @@ cc_test(
     srcs = ["status_matchers_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     enclave_test_name = "status_matchers_enclave_test",
+    tags = ["regression"],
     deps = [
         ":status_matchers",
         ":test_main",
@@ -242,29 +245,14 @@ cc_test(
 )
 
 cc_library(
-    name = "finite_domain_fuzz",
-    testonly = 1,
-    srcs = ["finite_domain_fuzz.cc"],
-    hdrs = ["finite_domain_fuzz.h"],
-    copts = ASYLO_DEFAULT_COPTS,
-    visibility = ["//visibility:public"],
-    deps = [
-        "@com_google_absl//absl/types:optional",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "fake_local_enclave_client",
     testonly = 1,
     hdrs = ["fake_local_enclave_client.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    deprecation = "Use mock_enclave_client instead",
     visibility = ["//visibility:public"],
     deps = [
         "//asylo:enclave_client",
         "//asylo/util:status",
-        "@com_google_absl//absl/base:core_headers",
     ],
 )
 
@@ -349,28 +337,6 @@ cc_library(
         "//asylo:enclave_proto_cc",
         "@com_google_absl//absl/strings",
     ],
-)
-
-# Provides configurations suitable for use in tests.
-cc_library(
-    name = "enclave_assertion_authority_configs",
-    testonly = 1,
-    srcs = ["enclave_assertion_authority_configs.cc"],
-    hdrs = ["enclave_assertion_authority_configs.h"],
-    visibility = ["//asylo:implementation"],
-    deps = [
-        "//asylo/identity:descriptions",
-        "//asylo/identity:enclave_assertion_authority_config_proto_cc",
-        "//asylo/identity/sgx:sgx_local_assertion_authority_config_proto_cc",
-        "//asylo/util:logging",
-    ],
-)
-
-# A library of shell test utilities.
-sh_library(
-    name = "shell_testing",
-    testonly = 1,
-    srcs = ["shell_testing.sh"],
 )
 
 # An enclave for testing purposes. All entry points use the default

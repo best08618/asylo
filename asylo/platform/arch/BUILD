@@ -23,16 +23,7 @@ package(
     default_visibility = ["//asylo:implementation"],
 )
 
-load("//asylo/bazel:asylo.bzl", "ASYLO_ALL_BACKENDS")
-load("//asylo/bazel:proto.bzl", "asylo_proto_library")
 load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
-
-# Protobuf used by fork.
-asylo_proto_library(
-    name = "fork_proto",
-    srcs = ["fork.proto"],
-    visibility = ["//visibility:public"],
-)
 
 # Target exposing trusted architecture-dependent components for the build
 # configuration.
@@ -40,6 +31,7 @@ cc_library(
     name = "trusted_arch",
     hdrs = [
         "include/trusted/enclave_interface.h",
+        "include/trusted/fork.h",
         "include/trusted/hardware_random.h",
         "include/trusted/host_calls.h",
         "include/trusted/memory.h",
@@ -65,11 +57,9 @@ cc_library(
     ],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        ":fork_proto_cc",
         ":untrusted_sgx",
         "//asylo:enclave_proto_cc",
         "//asylo/platform/core:untrusted_core",
-        "//asylo/platform/primitives/sgx:untrusted_sgx",
         "//asylo/util:status",
         "@com_google_absl//absl/base:core_headers",
         "@linux_sgx//:urts",
@@ -142,7 +132,7 @@ cc_library(
     copts = ASYLO_DEFAULT_COPTS,
     visibility = ["//visibility:private"],
     deps = [
-        ":fork_proto_cc",
+        ":sgx_error_space",
         "//asylo:enclave_proto_cc",
         "//asylo/platform/common:bridge_proto_serializer",
         "//asylo/platform/common:bridge_types",
@@ -151,11 +141,6 @@ cc_library(
         "//asylo/platform/common:memory",
         "//asylo/platform/core:shared_name",
         "//asylo/platform/core:untrusted_core",
-        "//asylo/platform/primitives:untrusted_primitives",
-        "//asylo/platform/primitives/sgx:sgx_error_space",
-        "//asylo/platform/primitives/sgx:untrusted_sgx",
-        "//asylo/platform/primitives/util:dispatch_table",
-        "//asylo/platform/storage/utils:fd_closer",
         "//asylo/util:elf_reader",
         "//asylo/util:file_mapping",
         "//asylo/util:logging",
@@ -169,6 +154,18 @@ cc_library(
     ],
 )
 
+# An error space for SGX.
+cc_library(
+    name = "sgx_error_space",
+    srcs = ["sgx/sgx_error_space.cc"],
+    hdrs = ["sgx/sgx_error_space.h"],
+    copts = ASYLO_DEFAULT_COPTS,
+    deps = [
+        "//asylo/util:status",
+        "@linux_sgx//:public",
+    ],
+)
+
 # Trusted runtime components for SGX.
 cc_library(
     name = "trusted_sgx",
@@ -178,13 +175,16 @@ cc_library(
         "sgx/trusted/enclave_syscalls.cc",
         "sgx/trusted/exceptions.cc",
         "sgx/trusted/host_calls.cc",
+        "sgx/trusted/sbrk.cc",
         "//asylo/platform/arch/sgx/host_calls_generator:generated_host_calls.cc",
     ] + select({
         "@linux_sgx//:sgx_hw": [
+            "sgx/trusted/fork.cc",
             "sgx/trusted/hardware_random.cc",
             "sgx/trusted/register_signal.cc",
         ],
         "@linux_sgx//:sgx_sim": [
+            "sgx_sim/trusted/fork.cc",
             "sgx_sim/trusted/hardware_random.cc",
             "sgx_sim/trusted/register_signal.cc",
         ],
@@ -192,6 +192,7 @@ cc_library(
     hdrs = [
         "include/trusted/enclave_interface.h",
         "include/trusted/entry_points.h",
+        "include/trusted/fork.h",
         "include/trusted/hardware_random.h",
         "include/trusted/host_calls.h",
         "include/trusted/memory.h",
@@ -201,9 +202,9 @@ cc_library(
         "-mrdrnd",
     ] + ASYLO_DEFAULT_COPTS,
     linkstatic = 1,
-    tags = ["asylo-sgx"],
     visibility = ["//visibility:private"],
     deps = [
+        ":sgx_error_space",
         ":trusted_sgx_bridge",
         "//asylo:enclave_proto_cc",
         "//asylo/platform/common:bridge_proto_serializer",
@@ -211,10 +212,9 @@ cc_library(
         "//asylo/platform/common:memory",
         "//asylo/platform/core:shared_name",
         "//asylo/platform/posix/signal:signal_manager",
-        "//asylo/platform/primitives/sgx:sgx_error_space",
-        "//asylo/platform/primitives/sgx:trusted_sgx",
         "//asylo/util:logging",
         "//asylo/util:status",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@linux_sgx//:public",
@@ -250,7 +250,6 @@ cc_library(
     ],
     copts = ASYLO_DEFAULT_COPTS,
     linkstatic = 1,
-    tags = ["asylo-sgx"],
     visibility = ["//visibility:private"],
     deps = [
         "//asylo/platform/common:bridge_types",
@@ -266,40 +265,4 @@ config_setting(
     values = {
         "crosstool_top": "@com_google_asylo_sgx_backend//toolchain:crosstool",
     },
-)
-
-# fork related runtime.
-cc_library(
-    name = "trusted_fork",
-    srcs = select({
-        "@linux_sgx//:sgx_hw": ["sgx/trusted/fork.cc"],
-        "//conditions:default": ["common/trusted/fork.cc"],
-    }),
-    hdrs = ["include/trusted/fork.h"],
-    copts = ASYLO_DEFAULT_COPTS,
-    linkstatic = 1,
-    tags = ASYLO_ALL_BACKENDS,
-    deps = [
-        ":fork_proto_cc",
-        ":trusted_arch",
-        "@com_google_absl//absl/strings",
-        "//asylo:enclave_proto_cc",
-    ] + select({
-        "@linux_sgx//:sgx_hw": [
-            "//asylo/crypto:aead_cryptor",
-            "//asylo/crypto/util:bssl_util",
-            "//asylo/platform/primitives/sgx:sgx_error_space",
-            "//asylo/grpc/auth/core:client_ekep_handshaker",
-            "//asylo/grpc/auth/core:server_ekep_handshaker",
-            "//asylo/identity:descriptions",
-            "//asylo/identity:identity_acl_evaluator",
-            "//asylo/identity/sgx:code_identity_util",
-            "//asylo/identity/sgx:sgx_code_identity_expectation_matcher",
-            "//asylo/identity/sgx:sgx_local_assertion_generator",
-            "//asylo/identity/sgx:sgx_local_assertion_verifier",
-            "//asylo/util:cleansing_types",
-            "//asylo/util:cleanup",
-        ],
-        "//conditions:default": [],
-    }),
 )

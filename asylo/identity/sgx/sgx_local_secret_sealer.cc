@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "absl/memory/memory.h"
-#include "asylo/crypto/aead_cryptor.h"
+#include "asylo/crypto/aes_gcm_siv.h"
 #include "asylo/crypto/util/byte_container_util.h"
 #include "asylo/crypto/util/byte_container_view.h"
 #include "asylo/crypto/util/bytes.h"
@@ -35,8 +35,6 @@
 #include "asylo/util/status_macros.h"
 
 namespace asylo {
-
-using experimental::AeadCryptor;
 
 constexpr size_t kAes256GcmSivKeySize = 32;
 
@@ -68,7 +66,9 @@ SgxLocalSecretSealer::CreateMrsignerSecretSealer() {
 
 SgxLocalSecretSealer::SgxLocalSecretSealer(
     const sgx::CodeIdentityExpectation &default_client_acl)
-    : default_client_acl_{default_client_acl} {}
+    : cryptor_{new AesGcmSivCryptor(kMaxAesGcmSivMessageSize,
+                                    new AesGcmSivNonceGenerator())},
+      default_client_acl_{default_client_acl} {}
 
 SealingRootType SgxLocalSecretSealer::RootType() const { return LOCAL; }
 
@@ -103,26 +103,6 @@ Status SgxLocalSecretSealer::SetDefaultHeader(
       default_client_acl_, header->mutable_client_acl()->mutable_expectation());
 }
 
-StatusOr<size_t> SgxLocalSecretSealer::MaxMessageSize(
-    const SealedSecretHeader &header) const {
-  sgx::CipherSuite cipher_suite;
-  ASYLO_ASSIGN_OR_RETURN(
-      cipher_suite,
-      sgx::internal::ParseCipherSuiteFromSealedSecretHeader(header));
-  return AeadCryptor::MaxMessageSize(
-      sgx::internal::CipherSuiteToAeadScheme(cipher_suite));
-}
-
-StatusOr<uint64_t> SgxLocalSecretSealer::MaxSealedMessages(
-    const SealedSecretHeader &header) const {
-  sgx::CipherSuite cipher_suite;
-  ASYLO_ASSIGN_OR_RETURN(
-      cipher_suite,
-      sgx::internal::ParseCipherSuiteFromSealedSecretHeader(header));
-  return AeadCryptor::MaxSealedMessages(
-      sgx::internal::CipherSuiteToAeadScheme(cipher_suite));
-}
-
 Status SgxLocalSecretSealer::Seal(
     const SealedSecretHeader &header,
     ByteContainerView additional_authenticated_data, ByteContainerView secret,
@@ -137,7 +117,7 @@ Status SgxLocalSecretSealer::Seal(
   if (!header.SerializeToString(
           sealed_secret->mutable_sealed_secret_header())) {
     return Status(error::GoogleError::INTERNAL,
-                  "Header serialization to string failed");
+                  "Header serialization to std::string failed");
   }
   sealed_secret->set_additional_authenticated_data(
       reinterpret_cast<const char *>(additional_authenticated_data.data()),
@@ -153,11 +133,9 @@ Status SgxLocalSecretSealer::Seal(
       cipher_suite, "default_key_id", cpusvn, sgx_expectation,
       kAes256GcmSivKeySize, &key));
 
-  std::unique_ptr<AeadCryptor> cryptor;
-  ASYLO_ASSIGN_OR_RETURN(cryptor,
-                         sgx::internal::MakeCryptor(cipher_suite, key));
-  return sgx::internal::Seal(cryptor.get(), secret, final_additional_data,
-                             sealed_secret);
+  return cryptor_->Seal(key, final_additional_data, secret,
+                        sealed_secret->mutable_iv(),
+                        sealed_secret->mutable_secret_ciphertext());
 }
 
 Status SgxLocalSecretSealer::Unseal(const SealedSecret &sealed_secret,
@@ -185,11 +163,9 @@ Status SgxLocalSecretSealer::Unseal(const SealedSecret &sealed_secret,
       cipher_suite, "default_key_id", cpusvn, sgx_expectation,
       kAes256GcmSivKeySize, &key));
 
-  std::unique_ptr<AeadCryptor> cryptor;
-  ASYLO_ASSIGN_OR_RETURN(cryptor,
-                         sgx::internal::MakeCryptor(cipher_suite, key));
-  return sgx::internal::Open(cryptor.get(), sealed_secret,
-                             final_additional_data, secret);
+  return cryptor_->Open(key, final_additional_data,
+                        sealed_secret.secret_ciphertext(), sealed_secret.iv(),
+                        secret);
 }
 
 }  // namespace asylo

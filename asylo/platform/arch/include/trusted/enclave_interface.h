@@ -37,11 +37,11 @@ constexpr uint64_t kInvalidThread = 0;
 
 // Validates that the address-range [|address|, |address| +|size|) is fully
 // contained within the enclave.
-bool enc_is_within_enclave(const void *address, size_t size);
+bool enc_is_within_enclave(const void* address, size_t size);
 
 // Validates that the address-range [|address|, |address| +|size|) is fully
 // contained outside of the enclave.
-bool enc_is_outside_enclave(void const *address, size_t size);
+bool enc_is_outside_enclave(void const* address, size_t size);
 
 struct EnclaveMemoryLayout {
   // Base address of the initialized data section in the current enclave.
@@ -66,18 +66,10 @@ struct EnclaveMemoryLayout {
   // Limit address of the stack for the current thread. This is the lower bound
   // of the stack since stack goes down.
   void *stack_limit;
-  // Base address of the data storage reserved to the Asylo runtime.
-  void *reserved_data_base;
-  // Size of the data storage reserved to the Asylo runtime.
-  size_t reserved_data_size;
-  // Base address of the bss storage reserved to the Asylo runtime.
-  void *reserved_bss_base;
-  // Size of the bss storage reserved to the Asylo runtime.
-  size_t reserved_bss_size;
-  // Base address of the heap storage reserved to the Asylo runtime.
-  void *reserved_heap_base;
-  // Size of the heap storage reserved to the Asylo runtime.
-  size_t reserved_heap_size;
+  // Base address of the storage reserved to the Asylo runtime.
+  void *reserved_base;
+  // Size of the storage reserved to the Asylo runtime.
+  size_t reserved_size;
 };
 
 void enc_get_memory_layout(struct EnclaveMemoryLayout *enclave_memory_layout);

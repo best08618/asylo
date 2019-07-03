@@ -55,8 +55,7 @@ TEST(TimeTests, Conversions) {
 
 // Test of range checks.
 TEST(TimeTests, Range) {
-  // An int64 has range -2^63.. 2^63-1, so 1 << 63 is undefined.
-  for (int i = 0; i < 63; i++) {
+  for (int i = 0; i < 64; i++) {
     struct timespec ts;
     ts.tv_sec = INT64_C(1) << i;
     EXPECT_EQ(IsRepresentableAsNanoseconds(&ts), i < 34);
@@ -64,7 +63,7 @@ TEST(TimeTests, Range) {
     EXPECT_EQ(IsRepresentableAsNanoseconds(&ts), i < 34);
   }
 
-  for (int i = 0; i < 63; i++) {
+  for (int i = 0; i < 64; i++) {
     struct timeval tv;
     tv.tv_sec = INT64_C(1) << i;
     EXPECT_EQ(IsRepresentableAsNanoseconds(&tv), i < 34);

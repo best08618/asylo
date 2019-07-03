@@ -118,11 +118,8 @@ class EpollTest : public ::testing::Test {
     int epfd = epoll_create(1);
     ASSERT_NE(epfd, -1);
     // Register all read ends from fd_pairs_ with this epoll instance.
-    if (edge_triggered) {
-      RegisterFds(epfd, kRead, /*additional_flags=*/EPOLLET);
-    } else {
-      RegisterFds(epfd, kRead);
-    }
+    int additional_flags = edge_triggered ? EPOLLET : 0;
+    RegisterFds(epfd, kRead, additional_flags);
     std::vector<int> write_fds;
     // Only write to the first kNumPipes/2.
     for (int i = 0; i < kNumPipes / 2; ++i) {

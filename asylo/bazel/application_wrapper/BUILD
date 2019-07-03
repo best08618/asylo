@@ -14,25 +14,22 @@
 # limitations under the License.
 #
 
+licenses(["notice"])  # Apache v2.0
+
+# Build targets for the whole-application wrapper and its tests.
+
 load(
     "//asylo/bazel:asylo.bzl",
-    "cc_enclave_binary",
     "cc_test",
-    "copy_from_host",
-    "sgx_enclave_test",
-    "ASYLO_ALL_BACKENDS",
+    "enclave_test",
 )
-load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 load("//asylo/bazel:proto.bzl", "asylo_proto_library")
+load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 load(
     "@linux_sgx//:sgx_sdk.bzl",
     "sgx_enclave",
     "sgx_enclave_configuration",
 )
-
-licenses(["notice"])  # Apache v2.0
-
-# Build targets for the whole-application wrapper and its tests.
 
 # A utility for converting various representations of argv.
 cc_library(
@@ -59,7 +56,6 @@ cc_library(
     name = "application_wrapper_enclave_core",
     srcs = ["application_wrapper_enclave.cc"],
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     visibility = ["//visibility:public"],
     deps = [
         ":application_wrapper_proto_cc",
@@ -68,23 +64,6 @@ cc_library(
         "//asylo/util:logging",
         "//asylo/util:status",
         "@com_google_absl//absl/strings",
-    ],
-)
-
-# The core logic of the whole-application wrapper's driver.
-cc_library(
-    name = "application_wrapper_driver_main",
-    srcs = ["application_wrapper_driver_main.cc"],
-    hdrs = ["application_wrapper_driver_main.h"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        ":application_wrapper_proto_cc",
-        ":argv",
-        "//asylo:enclave_client",
-        "//asylo/util:cleanup",
-        "//asylo/util:logging",
-        "//asylo/util:status",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -127,7 +106,6 @@ sgx_enclave(
     name = "application_wrapper_enclave_test_enclave.so",
     testonly = 1,
     config = ":application_wrapper_enclave_test_configuration",
-    copts = ASYLO_DEFAULT_COPTS,
     deps = [
         ":application_wrapper_enclave_core",
         ":test_application_library",
@@ -135,7 +113,7 @@ sgx_enclave(
 )
 
 # A test of ApplicationWrapperEnclave.
-sgx_enclave_test(
+enclave_test(
     name = "application_wrapper_enclave_test",
     srcs = ["application_wrapper_enclave_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -148,70 +126,13 @@ sgx_enclave_test(
         ":application_wrapper_proto_cc",
         ":argv",
         "//asylo:enclave_client",
+        "//asylo/test/util:pipe",
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_main",
-        "//asylo/util:fd_utils",
         "//asylo/util:logging",
         "//asylo/util:status",
         "@com_github_gflags_gflags//:gflags_nothreads",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
-)
-
-# A test of the application driver core logic.
-cc_test(
-    name = "application_wrapper_driver_main_test",
-    srcs = ["application_wrapper_driver_main_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        ":application_wrapper_driver_main",
-        ":application_wrapper_proto_cc",
-        ":argv",
-        "//asylo:enclave_client",
-        "//asylo/test/util:fake_enclave_loader",
-        "//asylo/test/util:mock_enclave_client",
-        "//asylo/test/util:output_collector",
-        "//asylo/test/util:proto_matchers",
-        "//asylo/test/util:status_matchers",
-        "//asylo/test/util:test_main",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-# A test application.
-cc_binary(
-    name = "test_application",
-    srcs = ["test_application.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = ["//asylo/util:logging"],
-)
-
-# A test enclave-wrapped application.
-cc_enclave_binary(
-    name = "test_enclave_application",
-    srcs = ["test_application.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = ["//asylo/util:logging"],
-)
-
-copy_from_host(
-    output = "test_host_application",
-    target = "test_application",
-)
-
-# An end-to-end test of the whole-application wrapper.
-sh_test(
-    name = "application_wrapper_end_to_end_test",
-    srcs = ["application_wrapper_end_to_end_test.sh"],
-    data = [
-        ":test_enclave_application",
-        ":test_host_application",
-    ],
-    tags = [
-        "asylo-sgx",
-        "enclave_test",
-    ],
-    deps = ["//asylo/test/util:shell_testing"],
 )

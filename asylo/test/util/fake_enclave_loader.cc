@@ -25,14 +25,8 @@ FakeEnclaveLoader::FakeEnclaveLoader(
     : client_(std::move(destination_client)) {}
 
 StatusOr<std::unique_ptr<EnclaveClient>> FakeEnclaveLoader::LoadEnclave(
-    const std::string &name, void *base_address, const size_t enclave_size,
-    const EnclaveConfig &config) const {
+    const std::string &name, void *base_address, const EnclaveConfig &config) const {
   return std::move(client_);
-}
-
-StatusOr<std::unique_ptr<EnclaveLoader>> FakeEnclaveLoader::Copy() const {
-  return Status(error::GoogleError::UNIMPLEMENTED,
-                "Cannot copy FakeEnclaveLoader");
 }
 
 }  // namespace asylo

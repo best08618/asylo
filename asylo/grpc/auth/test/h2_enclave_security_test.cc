@@ -27,12 +27,12 @@
 #include "asylo/grpc/auth/util/bridge_cpp_to_c.h"
 #include "asylo/identity/enclave_assertion_authority_config.pb.h"
 #include "asylo/identity/init.h"
-#include "asylo/test/util/enclave_assertion_authority_configs.h"
+#include "asylo/identity/null_identity/null_identity_util.h"
+#include "asylo/platform/core/trusted_global_state.h"
 #include "include/grpc/impl/codegen/grpc_types.h"
 #include "include/grpc/support/alloc.h"
 #include "include/grpc/support/log.h"
 #include "src/core/lib/gpr/host_port.h"
-#include "src/core/lib/gprpp/ref_counted_ptr.h"
 #include "test/core/end2end/end2end_tests.h"
 #include "test/core/util/test_config.h"
 
@@ -42,6 +42,7 @@ namespace {
 constexpr char kClientAdditionalAuthenticatedData[] = "EKEP client";
 constexpr char kServerAdditionalAuthenticatedData[] = "EKEP server";
 constexpr char kAddress[] = "[::1]";
+constexpr char kLocalAttestationDomain[] = "gRPC Test Domain";
 
 struct EnclaveFullStackFixtureData {
   // The address of the server.
@@ -76,14 +77,15 @@ grpc_end2end_test_fixture CreateFixtureSecureFullstack(
   return f;
 }
 
-// Uses |options| to construct gRPC enclave channel credentials. Returns the
-// resulting credentials object.
-grpc_core::RefCountedPtr<grpc_channel_credentials> InitClientEnclaveCredentials(
-    const EnclaveCredentialsOptions &options) {
+// Uses |options| to construct gRPC enclave channel credentials,
+// and sets |credentials| to point to the resulting credentials object.
+void InitClientEnclaveCredentials(const EnclaveCredentialsOptions &options,
+                                  grpc_channel_credentials **credentials) {
   grpc_enclave_credentials_options c_options;
   grpc_enclave_credentials_options_init(&c_options);
   CopyEnclaveCredentialsOptions(options, &c_options);
-  return grpc_enclave_channel_credentials_create(&c_options);
+
+  *credentials = grpc_enclave_channel_credentials_create(&c_options);
 }
 
 // Initializes the channel in fixture |f| using |client_args| and |options|.
@@ -94,18 +96,17 @@ void InitClientChannel(EnclaveCredentialsOptions options,
   options.additional_authenticated_data = kClientAdditionalAuthenticatedData;
 
   // Create enclave gRPC channel credentials.
-  grpc_core::RefCountedPtr<grpc_channel_credentials> creds =
-      InitClientEnclaveCredentials(options);
+  grpc_channel_credentials *creds = nullptr;
+  InitClientEnclaveCredentials(options, &creds);
   GPR_ASSERT(creds != nullptr);
 
   EnclaveFullStackFixtureData *fixture_data =
       static_cast<EnclaveFullStackFixtureData *>(f->fixture_data);
   GPR_ASSERT(fixture_data->port_set);
-
-  f->client =
-      grpc_secure_channel_create(creds.get(), fixture_data->local_address,
-                                 client_args, /*reserved=*/nullptr);
+  f->client = grpc_secure_channel_create(creds, fixture_data->local_address,
+                                         client_args, /*reserved=*/nullptr);
   GPR_ASSERT(f->client != nullptr);
+  grpc_channel_credentials_release(creds);
 }
 
 // Initializes the client in fixture |f| with |server_args| and bidirectional
@@ -149,16 +150,16 @@ void InitClientEnclaveBidirectionalNullAndSgxLocalCredentials(
                     f, client_args);
 }
 
-// Uses |options| to construct gRPC enclave server credentials. Returns the
-// resulting credentials object.
-grpc_core::RefCountedPtr<grpc_server_credentials> InitServerEnclaveCredentials(
-    const EnclaveCredentialsOptions &options) {
+// Uses |options| to construct gRPC enclave server credentials,
+// and sets |credentials| to point to the resulting credentials object.
+void InitServerEnclaveCredentials(const EnclaveCredentialsOptions &options,
+                                  grpc_server_credentials **credentials) {
   grpc_enclave_credentials_options c_options;
   grpc_enclave_credentials_options_init(&c_options);
   CopyEnclaveCredentialsOptions(options, &c_options);
 
   // Create enclave gRPC server credentials.
-  return grpc_enclave_server_credentials_create(&c_options);
+  *credentials = grpc_enclave_server_credentials_create(&c_options);
 }
 
 // Initializes the server in fixture |f| using |server_args| and |options|.
@@ -168,8 +169,8 @@ void InitServer(EnclaveCredentialsOptions options, grpc_end2end_test_fixture *f,
   options.additional_authenticated_data = kServerAdditionalAuthenticatedData;
 
   // Create enclave gRPC server credentials.
-  grpc_core::RefCountedPtr<grpc_server_credentials> creds =
-      InitServerEnclaveCredentials(options);
+  grpc_server_credentials *creds = nullptr;
+  InitServerEnclaveCredentials(options, &creds);
   GPR_ASSERT(creds != nullptr);
 
   EnclaveFullStackFixtureData *fixture_data =
@@ -180,11 +181,13 @@ void InitServer(EnclaveCredentialsOptions options, grpc_end2end_test_fixture *f,
   // Bind the server to the temporary address and update the address with the
   // auto-selected port chosen by the system.
   int port = grpc_server_add_secure_http2_port(
-      f->server, fixture_data->local_address, creds.get());
+      f->server, fixture_data->local_address, creds);
   GPR_ASSERT(port != 0);
   gpr_free(fixture_data->local_address);
   gpr_join_host_port(&fixture_data->local_address, kAddress, port);
   fixture_data->port_set = true;
+
+  grpc_server_credentials_release(creds);
   grpc_server_start(f->server);
 }
 
@@ -235,7 +238,6 @@ void TearDownSecureFullstack(grpc_end2end_test_fixture *f) {
   gpr_free(fixture_data);
 }
 
-
 // All test configurations for the enclave gRPC stack.
 static grpc_end2end_test_config configs[] = {
     // Bidirectional null-identity-based attestation.
@@ -285,13 +287,19 @@ int main(int argc, char **argv) {
   grpc_end2end_tests_pre_init();
   grpc_init();
 
-  // Explicitly initialize all assertion authorities used in this test.
-  std::vector<asylo::EnclaveAssertionAuthorityConfig> authority_configs = {
-    asylo::GetNullAssertionAuthorityTestConfig(),
-    asylo::GetSgxLocalAssertionAuthorityTestConfig(),
-  };
-  GPR_ASSERT(InitializeEnclaveAssertionAuthorities(authority_configs.cbegin(),
-                                                   authority_configs.cend())
+  // Set the attestation domain in the global EnclaveConfig.
+  asylo::EnclaveConfig enclave_config;
+  enclave_config.mutable_host_config()->set_local_attestation_domain(
+      asylo::kLocalAttestationDomain);
+  asylo::SetEnclaveConfig(enclave_config);
+
+  // Initialize all enclave assertion authorities. No configs are currently
+  // needed for either the null or SGX local null assertion authorities.
+  // Consequently, no configs are provided and this call will just initialize
+  // each authority with an empty config string.
+  std::vector<asylo::EnclaveAssertionAuthorityConfig> authority_configs;
+  GPR_ASSERT(asylo::InitializeEnclaveAssertionAuthorities(
+                 authority_configs.begin(), authority_configs.end())
                  .ok());
 
   size_t i;

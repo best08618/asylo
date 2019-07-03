@@ -18,10 +18,10 @@
 
 #include "asylo/platform/posix/io/io_manager.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <cerrno>
-#include <cstdint>
+#include <stdint.h>
 #include <memory>
 
 #include "absl/algorithm/container.h"
@@ -46,16 +46,13 @@ IOManager::FileDescriptorTable::FileDescriptorTable()
 
 std::shared_ptr<IOManager::IOContext> IOManager::FileDescriptorTable::Get(
     int fd) {
-  if (!IsFileDescriptorValid(fd) || !fd_table_[fd]) return nullptr;
-  return fd_table_[fd]->Get();
+  if (!IsFileDescriptorValid(fd)) return nullptr;
+  return fd_table_[fd];
 }
 
-int IOManager::FileDescriptorTable::Delete(int fd) {
-  if (!IsFileDescriptorValid(fd)) return 0;
-  int close_result = 0;
-  fd_table_[fd]->WriteCloseResultTo(&close_result);
+void IOManager::FileDescriptorTable::Delete(int fd) {
+  if (!IsFileDescriptorValid(fd)) return;
   fd_table_[fd] = nullptr;
-  return close_result;
 }
 
 bool IOManager::FileDescriptorTable::IsFileDescriptorUnused(int fd) {
@@ -68,7 +65,7 @@ int IOManager::FileDescriptorTable::Insert(IOContext *context) {
   if (fd < 0) {
     return -1;
   }
-  fd_table_[fd] = std::make_shared<AutoCloseIOContext>(context);
+  fd_table_[fd] = std::shared_ptr<IOContext>(context);
   return fd;
 }
 
@@ -78,6 +75,7 @@ int IOManager::FileDescriptorTable::CopyFileDescriptor(int oldfd, int startfd) {
     return -1;
   }
   fd_table_[newfd] = fd_table_[oldfd];
+  fd_table_[oldfd]->IncrementFdReference();
   return newfd;
 }
 
@@ -88,6 +86,7 @@ int IOManager::FileDescriptorTable::CopyFileDescriptorToSpecifiedTarget(
     return -1;
   }
   fd_table_[newfd] = fd_table_[oldfd];
+  fd_table_[oldfd]->IncrementFdReference();
   return newfd;
 }
 
@@ -95,13 +94,9 @@ bool IOManager::FileDescriptorTable::SetFileDescriptorLimits(
     const struct rlimit *rlim) {
   // The new limit should not exceed the absolute max file limit, and
   // unprivileged process should not be allowed to increase the hard limit.
-  if (rlim->rlim_max <= GetHighestFileDescriptorUsed()) {
-    errno = EINVAL;
-    return false;
-  }
   if (rlim->rlim_cur > rlim->rlim_max || rlim->rlim_max > kMaxOpenFiles ||
+      rlim->rlim_max <= GetHighestFileDescriptorUsed() ||
       rlim->rlim_max > maximum_fd_hard_limit) {
-    errno = EPERM;
     return false;
   }
   maximum_fd_soft_limit = rlim->rlim_cur;
@@ -154,7 +149,14 @@ int IOManager::Access(const char *path, int mode) {
 int IOManager::CloseFileDescriptor(int fd) {
   std::shared_ptr<IOContext> context = fd_table_.Get(fd);
   if (context) {
-    return fd_table_.Delete(fd);
+    int ret = 0;
+    // Only close the host file descriptor if this is the last reference to it.
+    context->DecrementFdReference();
+    if (context->IsNoFdReference()) {
+      ret = context->Close();
+    }
+    fd_table_.Delete(fd);
+    return ret;
   }
   errno = EBADF;
   return -1;
@@ -225,6 +227,7 @@ int IOManager::Open(const char *path, int flags, mode_t mode) {
       absl::WriterMutexLock lock(&fd_table_lock_);
       int fd = fd_table_.Insert(context.get());
       if (fd >= 0) {
+        context->IncrementFdReference();
         context.release();
         return fd;
       }
@@ -267,8 +270,8 @@ int IOManager::Dup2(int oldfd, int newfd) {
   return -1;
 }
 
-int IOManager::Pipe(int pipefd[2], int flags) {
-  int res = enc_untrusted_pipe2(pipefd, flags);
+int IOManager::Pipe(int pipefd[2]) {
+  int res = enc_untrusted_pipe(pipefd);
   if (res != -1) {
     pipefd[0] = RegisterHostFileDescriptor(pipefd[0]);
     pipefd[1] = RegisterHostFileDescriptor(pipefd[1]);
@@ -282,18 +285,12 @@ int IOManager::Pipe(int pipefd[2], int flags) {
 
 int IOManager::Select(int nfds, fd_set *readfds, fd_set *writefds,
                       fd_set *exceptfds, struct timeval *timeout) {
-  if (nfds < 0) {
-    errno = EINVAL;
-    return -1;
-  }
-
   // Translate the fd_sets into host file descriptors.
   fd_set host_readfds, host_writefds, host_exceptfds;
   FD_ZERO(&host_readfds);
   FD_ZERO(&host_writefds);
   FD_ZERO(&host_exceptfds);
-
-  int host_nfds = 0;
+  int host_nfds = nfds;
   for (int fd = 0; fd < nfds; ++fd) {
     if (readfds && FD_ISSET(fd, readfds)) {
       std::shared_ptr<IOContext> context = fd_table_.Get(fd);
@@ -401,14 +398,7 @@ int IOManager::Poll(struct pollfd *fds, nfds_t nfds, int timeout) {
 }
 
 int IOManager::EpollCreate(int size) {
-  if (size < 1) {
-    errno = EINVAL;
-    return -1;
-  }
   int hostfd = enc_untrusted_epoll_create(size);
-  if (hostfd == -1) {
-    return -1;
-  }
   auto context = ::absl::make_unique<IOContextEpoll>(hostfd);
   absl::WriterMutexLock lock(&fd_table_lock_);
   int fd = fd_table_.Insert(context.get());
@@ -431,18 +421,18 @@ int IOManager::EpollCtl(int epfd, int op, int fd, struct epoll_event *event) {
     errno = EBADF;
     return -1;
   }
-  return CallWithContext(
-      epfd, [op, hostfd, event](std::shared_ptr<IOContext> epoll_context) {
-        return epoll_context->EpollCtl(op, hostfd, event);
-      });
+  return CallWithContext(epfd, [op, hostfd, event]
+                           (std::shared_ptr<IOContext> epoll_context) {
+    return epoll_context->EpollCtl(op, hostfd, event);
+  });
 }
 
 int IOManager::EpollWait(int epfd, struct epoll_event *events, int maxevents,
                          int timeout) {
-  return CallWithContext(
-      epfd, [events, maxevents, timeout](std::shared_ptr<IOContext> context) {
-        return context->EpollWait(events, maxevents, timeout);
-      });
+  return CallWithContext(epfd, [events, maxevents, timeout]
+                           (std::shared_ptr<IOContext> context) {
+    return context->EpollWait(events, maxevents, timeout);
+  });
 }
 
 int IOManager::EventFd(unsigned int initval, int flags) {
@@ -459,9 +449,6 @@ int IOManager::EventFd(unsigned int initval, int flags) {
 
 int IOManager::InotifyInit(bool non_block) {
   int hostfd = enc_untrusted_inotify_init1(non_block);
-  if (hostfd == -1) {
-    return -1;
-  }
   auto context = ::absl::make_unique<IOContextInotify>(hostfd);
   absl::WriterMutexLock lock(&fd_table_lock_);
   int fd = fd_table_.Insert(context.get());
@@ -581,8 +568,7 @@ int IOManager::Read(int fd, char *buf, size_t count) {
 }
 
 bool IOManager::RegisterVirtualPathHandler(
-    const std::string &path_prefix,
-    std::unique_ptr<VirtualPathHandler> handler) {
+    const std::string &path_prefix, std::unique_ptr<VirtualPathHandler> handler) {
   if (!handler || (!path_prefix.empty() &&
                    (path_prefix.front() != '/' || path_prefix.back() == '/'))) {
     return false;
@@ -610,8 +596,7 @@ std::string IOManager::GetCurrentWorkingDirectory() const {
   return current_working_directory_;
 }
 
-StatusOr<std::string> IOManager::CanonicalizePath(
-    absl::string_view path) const {
+StatusOr<std::string> IOManager::CanonicalizePath(absl::string_view path) const {
   // Cannot resolve an empty path.
   if (path.empty()) {
     return Status(error::PosixError::P_ENOENT,
@@ -812,15 +797,6 @@ int IOManager::Mkdir(const char *path, mode_t mode) {
       });
 }
 
-int IOManager::Rename(const char *oldpath, const char *newpath) {
-  return CallWithHandler(
-      oldpath, newpath,
-      [](VirtualPathHandler *handler, const char *canonical_oldpath,
-         const char *canonical_newpath) {
-        return handler->Rename(canonical_oldpath, canonical_newpath);
-      });
-}
-
 ssize_t IOManager::Writev(int fd, const struct iovec *iov, int iovcnt) {
   return CallWithContext(fd, [iov, iovcnt](std::shared_ptr<IOContext> context) {
     return context->Writev(iov, iovcnt);
@@ -868,6 +844,7 @@ int IOManager::SetRLimit(int resource, const struct rlimit *rlim) {
       {
         absl::WriterMutexLock lock(&fd_table_lock_);
         if (!fd_table_.SetFileDescriptorLimits(rlim)) {
+          errno = EPERM;
           return -1;
         }
         return 0;

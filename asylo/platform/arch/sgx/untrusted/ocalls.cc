@@ -18,17 +18,16 @@
 
 // Stubs invoked by edger8r generated bridge code for ocalls.
 
-// For |domainname| field in struct utsname and pipe2().
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
 #include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <poll.h>
 #include <sched.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <sys/epoll.h>
 #include <sys/file.h>
 #include <sys/inotify.h>
@@ -36,21 +35,18 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE  // For |domainname| field in struct utsname.
+#endif
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <syslog.h>
+#include <time.h>
 #include <unistd.h>
 #include <utime.h>
 #include <algorithm>
-#include <cerrno>
-#include <csignal>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <ctime>
 
 #include "absl/memory/memory.h"
-#include "asylo/enclave.pb.h"
 #include "asylo/platform/arch/sgx/untrusted/generated_bridge_u.h"
 #include "asylo/platform/arch/sgx/untrusted/sgx_client.h"
 #include "asylo/platform/common/bridge_functions.h"
@@ -60,10 +56,7 @@
 #include "asylo/platform/common/memory.h"
 #include "asylo/platform/core/enclave_manager.h"
 #include "asylo/platform/core/shared_name.h"
-#include "asylo/platform/storage/utils/fd_closer.h"
-#include "asylo/util/posix_error_space.h"
 #include "asylo/util/status.h"
-#include "asylo/util/status_macros.h"
 
 #include "asylo/util/logging.h"
 
@@ -122,28 +115,6 @@ void HandleSignalInSim(int signum, siginfo_t *info, void *ucontext) {
   }
 }
 
-// Perform a snapshot key transfer from the parent to the child.
-asylo::Status DoSnapshotKeyTransfer(asylo::EnclaveManager *manager,
-                                    asylo::EnclaveClient *client,
-                                    int self_socket, int peer_socket,
-                                    bool is_parent) {
-  asylo::platform::storage::FdCloser self_socket_closer(self_socket);
-  // Close the socket for the other side, and enters the enclave to send the
-  // snapshot key through the socket.
-  if (close(peer_socket) < 0) {
-    return asylo::Status(static_cast<asylo::error::PosixError>(errno),
-                         absl::StrCat("close failed: ", strerror(errno)));
-  }
-
-  asylo::ForkHandshakeConfig fork_handshake_config;
-  fork_handshake_config.set_is_parent(is_parent);
-  fork_handshake_config.set_socket(self_socket);
-  ASYLO_RETURN_IF_ERROR(manager->EnterAndTransferSecureSnapshotKey(
-      client, fork_handshake_config));
-
-  return asylo::Status::OkStatus();
-}
-
 }  // namespace
 
 // Threading implementation-defined untrusted thread donate routine.
@@ -166,40 +137,13 @@ void *ocall_enc_untrusted_malloc(bridge_size_t size) {
   return ret;
 }
 
-void **ocall_enc_untrusted_allocate_buffers(bridge_size_t count,
-                                            bridge_size_t size) {
-  void **buffers = reinterpret_cast<void **>(
-      malloc(static_cast<size_t>(count) * sizeof(void*)));
-  for (int i = 0; i < count; i++) {
-    buffers[i] = malloc(size);
-  }
-  return buffers;
-}
-
-void ocall_enc_untrusted_deallocate_free_list(void **free_list,
-                                              bridge_size_t count) {
-  // This function only releases memory on the untrusted heap pointed to by
-  // buffer pointers stored in |free_list|, not freeing the |free_list| object
-  // itself. The client making the host call is responsible for the deallocation
-  // of the |free list| object.
-  for (int i = 0; i < count; i++) {
-    free(free_list[i]);
-  }
-}
-
 int ocall_enc_untrusted_open(const char *path_name, int flags, uint32_t mode) {
   int host_flags = asylo::FromBridgeFileFlags(flags);
   int ret = open(path_name, host_flags, mode);
   return ret;
 }
 
-int ocall_enc_untrusted_fcntl(int fd, int bridge_cmd, int64_t arg) {
-  int cmd = asylo::FromBridgeFcntlCmd(bridge_cmd);
-  if (cmd == -1) {
-    errno = EINVAL;
-    return -1;
-  }
-
+int ocall_enc_untrusted_fcntl(int fd, int cmd, int64_t arg) {
   int ret;
   switch (cmd) {
     case F_SETFL:
@@ -220,14 +164,7 @@ int ocall_enc_untrusted_fcntl(int fd, int bridge_cmd, int64_t arg) {
         ret = asylo::ToBridgeFDFlags(ret);
       }
       break;
-    case F_GETPIPE_SZ:
-      ret = fcntl(fd, cmd, arg);
-      break;
-    case F_SETPIPE_SZ:
-      ret = fcntl(fd, cmd, arg);
-      break;
     default:
-      errno = EINVAL;
       return -1;
   }
   return ret;
@@ -271,36 +208,23 @@ bridge_ssize_t ocall_enc_untrusted_read_with_untrusted_ptr(int fd, void *buf,
 //             Sockets              //
 //////////////////////////////////////
 
-int ocall_enc_untrusted_socket(int domain, int type, int protocol) {
-  return socket(asylo::FromBridgeAfFamily(domain),
-                asylo::FromBridgeSocketType(type), protocol);
-}
-
 int ocall_enc_untrusted_connect(int sockfd,
-                                const struct bridge_sockaddr *bridge_addr) {
-  struct sockaddr_storage tmp;
-  socklen_t len = sizeof(tmp);
-  struct sockaddr *addr = asylo::FromBridgeSockaddr(
-      bridge_addr, reinterpret_cast<struct sockaddr *>(&tmp), &len);
-
-  LOG_IF(FATAL, addr == nullptr) << "Unexpected bridge failure";
-  LOG_IF(FATAL, len > sizeof(tmp)) << "Insufficient sockaddr buf space";
-
-  int ret = connect(sockfd, addr, len);
+                                const struct bridge_sockaddr *addr) {
+  struct bridge_sockaddr tmp;
+  socklen_t len = 0;
+  asylo::FromBridgeSockaddr(addr, reinterpret_cast<struct sockaddr *>(&tmp),
+                            &len);
+  int ret = connect(sockfd, reinterpret_cast<struct sockaddr *>(&tmp), len);
   return ret;
 }
 
-int ocall_enc_untrusted_bind(int sockfd,
-                             const struct bridge_sockaddr *bridge_addr) {
-  struct sockaddr_storage tmp;
-  socklen_t len = sizeof(tmp);
-  struct sockaddr *addr = asylo::FromBridgeSockaddr(
-      bridge_addr, reinterpret_cast<struct sockaddr *>(&tmp), &len);
-
-  LOG_IF(FATAL, addr == nullptr) << "Unexpected bridge failure";
-  LOG_IF(FATAL, len > sizeof(tmp)) << "Insufficient sockaddr buf space";
-
-  int ret = bind(sockfd, addr, len);
+int ocall_enc_untrusted_bind(int sockfd, const struct bridge_sockaddr *addr) {
+  struct bridge_sockaddr tmp;
+  socklen_t len = 0;
+  asylo::FromBridgeSockaddr(
+                     addr, reinterpret_cast<struct sockaddr *>(&tmp), &len);
+  int ret = bind(sockfd,
+                 reinterpret_cast<struct sockaddr *>(&tmp), len);
   return ret;
 }
 
@@ -388,22 +312,24 @@ int ocall_enc_untrusted_getaddrinfo(const char *node, const char *service,
                                     bridge_size_t *serialized_res_len) {
   struct addrinfo *hints;
   std::string tmp_serialized_hints(serialized_hints,
-                                   static_cast<size_t>(serialized_hints_len));
+                              static_cast<size_t>(serialized_hints_len));
   if (!asylo::DeserializeAddrinfo(&tmp_serialized_hints, &hints)) {
     return -1;
+  }
+  if (hints) {
+    hints->ai_flags = asylo::FromBridgeAddressInfoFlags(hints->ai_flags);
   }
 
   struct addrinfo *res;
   int ret = getaddrinfo(node, service, hints, &res);
   if (ret != 0) {
-    return asylo::ToBridgeAddressInfoErrors(ret);
+    return ret;
   }
   asylo::FreeDeserializedAddrinfo(hints);
 
   std::string tmp_serialized_res;
-  int bridge_error_code = -1;
-  if (!asylo::SerializeAddrinfo(res, &tmp_serialized_res, &bridge_error_code)) {
-    return bridge_error_code;
+  if (!asylo::SerializeAddrinfo(res, &tmp_serialized_res)) {
+    return -1;
   }
   freeaddrinfo(res);
 
@@ -413,7 +339,7 @@ int ocall_enc_untrusted_getaddrinfo(const char *node, const char *service,
   memcpy(serialized_res, tmp_serialized_res.c_str(), tmp_serialized_res_len);
   *serialized_res_start = serialized_res;
   *serialized_res_len = static_cast<bridge_size_t>(tmp_serialized_res_len);
-  return 0;
+  return ret;
 }
 
 int ocall_enc_untrusted_getsockopt(int sockfd, int level, int optname,
@@ -437,14 +363,8 @@ int ocall_enc_untrusted_getsockname(int sockfd, struct bridge_sockaddr *addr) {
   socklen_t tmp_len = sizeof(tmp);
   int ret =
       getsockname(sockfd, reinterpret_cast<struct sockaddr *>(&tmp), &tmp_len);
-
-  LOG_IF(FATAL, tmp_len > sizeof(tmp)) << "Insufficient sockaddr buf space";
-
-  // Only marshal the sockaddr if a valid one was returned.
-  if (ret == 0) {
-    asylo::ToBridgeSockaddr(reinterpret_cast<struct sockaddr *>(&tmp), tmp_len,
-                            addr);
-  }
+  asylo::ToBridgeSockaddr(reinterpret_cast<struct sockaddr *>(&tmp), tmp_len,
+                          addr);
   return ret;
 }
 
@@ -453,10 +373,8 @@ int ocall_enc_untrusted_getpeername(int sockfd, struct bridge_sockaddr *addr) {
   socklen_t tmp_len = sizeof(tmp);
   int ret =
       getpeername(sockfd, reinterpret_cast<struct sockaddr *>(&tmp), &tmp_len);
-  if (ret == 0) {
-    asylo::ToBridgeSockaddr(reinterpret_cast<struct sockaddr *>(&tmp), tmp_len,
-                            addr);
-  }
+  asylo::ToBridgeSockaddr(reinterpret_cast<struct sockaddr *>(&tmp), tmp_len,
+                          addr);
   return ret;
 }
 
@@ -481,14 +399,10 @@ ssize_t ocall_enc_untrusted_recvfrom(const char *serialized_args,
     socklen_t addrlen;
     int ret = recvfrom(sockfd, *buf_ptr, len, flags, src_addr_ptr, &addrlen);
     size_t src_addr_len = 0;
-    // If the address family is unsupported, then errno is set to indicate an
-    // invalid argument error. The value of error_code is irrelevant in this
-    // context.
-    int error_code;
     // The caller is responsible for freeing the memory allocated by
     // SerializeRecvFromSrcAddr.
     if (!asylo::SerializeRecvFromSrcAddr(src_addr_ptr, serialized_output,
-                                         &src_addr_len, &error_code)) {
+                                         &src_addr_len)) {
       errno = EINVAL;
       return -1;
     }
@@ -531,7 +445,7 @@ int ocall_enc_untrusted_epoll_create(int size) { return epoll_create(size); }
 int ocall_enc_untrusted_epoll_ctl(const char *serialized_args,
                                   bridge_size_t serialized_args_len) {
   std::string serialized_args_str(serialized_args,
-                                  static_cast<size_t>(serialized_args_len));
+                             static_cast<size_t>(serialized_args_len));
   int epfd = 0;
   int op = 0;
   int hostfd = 0;
@@ -552,7 +466,7 @@ int ocall_enc_untrusted_epoll_wait(const char *serialized_args,
   int maxevents = 0;
   int timeout = 0;
   std::string serialized_args_str(serialized_args,
-                                  static_cast<size_t>(serialized_args_len));
+                             static_cast<size_t>(serialized_args_len));
   if (!asylo::DeserializeEpollWaitArgs(serialized_args_str, &epfd, &maxevents,
                                        &timeout)) {
     errno = EINVAL;
@@ -855,18 +769,6 @@ int ocall_enc_untrusted_clock_gettime(bridge_clockid_t clk_id,
   return ret;
 }
 
-int ocall_enc_untrusted_getitimer(enum TimerType which,
-                                  struct BridgeITimerVal *bridge_curr_value) {
-  itimerval curr_value;
-  int ret = getitimer(asylo::FromBridgeTimerType(which), &curr_value);
-  if (bridge_curr_value == nullptr ||
-      !asylo::ToBridgeITimerVal(&curr_value, bridge_curr_value)) {
-    errno = EFAULT;
-    return -1;
-  }
-  return ret;
-}
-
 int ocall_enc_untrusted_setitimer(enum TimerType which,
                                   struct BridgeITimerVal *bridge_new_value,
                                   struct BridgeITimerVal *bridge_old_value) {
@@ -877,7 +779,7 @@ int ocall_enc_untrusted_setitimer(enum TimerType which,
   }
   int ret =
       setitimer(asylo::FromBridgeTimerType(which), &new_value, &old_value);
-  if (bridge_old_value != nullptr &&
+  if (bridge_old_value &&
       !asylo::ToBridgeITimerVal(&old_value, bridge_old_value)) {
     errno = EFAULT;
     return -1;
@@ -921,8 +823,8 @@ int ocall_enc_untrusted_uname(struct BridgeUtsName *bridge_utsname_val) {
 //            unistd.h              //
 //////////////////////////////////////
 
-int ocall_enc_untrusted_pipe2(int pipefd[2], int flags) {
-  int ret = pipe2(pipefd, asylo::FromBridgeFileFlags(flags));
+int ocall_enc_untrusted_pipe(int pipefd[2]) {
+  int ret = pipe(pipefd);
   return ret;
 }
 
@@ -936,135 +838,6 @@ int64_t ocall_enc_untrusted_sysconf(enum SysconfConstants bridge_name) {
 }
 
 uint32_t ocall_enc_untrusted_sleep(uint32_t seconds) { return sleep(seconds); }
-
-void ocall_enc_untrusted__exit(int rc) { _exit(rc); }
-
-pid_t ocall_enc_untrusted_fork(const char *enclave_name, const char *config,
-                               bridge_size_t config_len,
-                               bool restore_snapshot) {
-  auto manager_result = asylo::EnclaveManager::Instance();
-  if (!manager_result.ok()) {
-    return -1;
-  }
-  asylo::EnclaveManager *manager = manager_result.ValueOrDie();
-  asylo::SgxClient *client = dynamic_cast<asylo::SgxClient *>(
-      manager->GetClient(enclave_name));
-
-  if (!restore_snapshot) {
-    // No need to take and restore a snapshot, just set indication that the new
-    // enclave is created from fork.
-    pid_t pid = fork();
-    if (pid == 0) {
-      // Set the process ID so that the new enclave created from fork does not
-      // reject entry.
-      client->SetProcessId();
-    }
-    return pid;
-  }
-
-  // A snapshot should be taken and restored for fork, take a snapshot of the
-  // current enclave memory.
-  void *enclave_base_address = client->base_address();
-  asylo::SnapshotLayout snapshot_layout;
-  asylo::Status status =
-      manager->EnterAndTakeSnapshot(client, &snapshot_layout);
-  if (!status.ok()) {
-    LOG(ERROR) << "EnterAndTakeSnapshot failed: " << status;
-    errno = ENOMEM;
-    return -1;
-  }
-
-  // The snapshot memory should be freed in both the parent and the child
-  // process.
-  asylo::MallocUniquePtr<void> snapshot_data_deleter(reinterpret_cast<void *>(
-      snapshot_layout.data_base()));
-  asylo::MallocUniquePtr<void> snapshot_bss_deleter(reinterpret_cast<void *>(
-      snapshot_layout.bss_base()));
-  asylo::MallocUniquePtr<void> snapshot_heap_deleter(reinterpret_cast<void *>(
-      snapshot_layout.heap_base()));
-  asylo::MallocUniquePtr<void> snapshot_thread_deleter(reinterpret_cast<void *>(
-      snapshot_layout.thread_base()));
-  asylo::MallocUniquePtr<void> snapshot_stack_deleter(reinterpret_cast<void *>(
-      snapshot_layout.stack_base()));
-
-  asylo::SgxLoader *loader =
-      dynamic_cast<asylo::SgxLoader *>(manager->GetLoaderFromClient(client));
-
-  // Create a socket pair used for communication between the parent and child
-  // enclave. |socket_pair[0]| is used by the parent enclave and
-  // |socket_pair[1]| is used by the child enclave.
-  int socket_pair[2];
-  if (socketpair(AF_LOCAL, SOCK_STREAM, 0, socket_pair) < 0) {
-    LOG(ERROR) << "Failed to create socket pair";
-    errno = EFAULT;
-    return -1;
-  }
-
-  pid_t pid = fork();
-  if (pid == -1) {
-    return pid;
-  }
-
-  size_t enclave_size = client->size();
-
-  // Parse the config from the enclave to load the child enclave with exactly
-  // the same config as the parent enclave.
-  asylo::EnclaveConfig enclave_config;
-  if (!enclave_config.ParseFromArray(config, static_cast<size_t>(config_len))) {
-    LOG(ERROR) << "Failed to parse EnclaveConfig";
-    errno = EFAULT;
-    return -1;
-  }
-
-  if (pid == 0) {
-    // Load an enclave at the same virtual space as the parent.
-    status = manager->LoadEnclave(enclave_name, *loader, enclave_config,
-                                  enclave_base_address, enclave_size);
-    if (!status.ok()) {
-      LOG(ERROR) << "Load new enclave failed:" << status;
-      errno = ENOMEM;
-      return -1;
-    }
-
-    // Verifies that the new enclave is loaded at the same virtual address space
-    // as the parent enclave.
-    client = dynamic_cast<asylo::SgxClient *>(manager->GetClient(enclave_name));
-    void *child_enclave_base_address = client->base_address();
-    if (child_enclave_base_address != enclave_base_address) {
-      LOG(ERROR) << "New enclave address: " << child_enclave_base_address
-                 << " is different from the parent enclave address: "
-                 << enclave_base_address;
-      errno = EAGAIN;
-      return -1;
-    }
-
-    asylo::Status status = DoSnapshotKeyTransfer(
-        manager, client, socket_pair[0], socket_pair[1], /*is_parent=*/false);
-    if (!status.ok()) {
-      LOG(ERROR) << "DoSnapshotKeyTransfer failed: " << status;
-      errno = EFAULT;
-      return -1;
-    }
-
-    // Enters the child enclave and restore the enclave memory.
-    status = manager->EnterAndRestore(client, snapshot_layout);
-    if (!status.ok()) {
-      LOG(ERROR) << "EnterAndRestore failed: " << status;
-      errno = EAGAIN;
-      return -1;
-    }
-  } else {
-    asylo::Status status = DoSnapshotKeyTransfer(
-        manager, client, /*self_socket=*/socket_pair[1],
-        /*peer_socket=*/socket_pair[0], /*is_parent=*/true);
-    if (!status.ok()) {
-      LOG(ERROR) << "DoSnapshotKeyTransfer failed: " << status;
-      errno = EFAULT;
-      return -1;
-    }
-  }
-  return pid;
-}
 
 //////////////////////////////////////
 //             wait.h               //

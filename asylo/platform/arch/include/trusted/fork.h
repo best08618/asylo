@@ -19,15 +19,10 @@
 #ifndef ASYLO_PLATFORM_ARCH_INCLUDE_TRUSTED_FORK_H_
 #define ASYLO_PLATFORM_ARCH_INCLUDE_TRUSTED_FORK_H_
 
-#include <sys/types.h>
-
 #include "asylo/enclave.pb.h"
-#include "asylo/platform/arch/fork.pb.h"
 #include "asylo/util/status.h"
 
 namespace asylo {
-
-pid_t enc_fork(const char *enclave_name, const EnclaveConfig &config);
 
 // Copies enclave data/bss/heap and stack for the calling thread to untrusted
 // memory.
@@ -36,11 +31,6 @@ Status TakeSnapshotForFork(SnapshotLayout *snapshot_layout);
 // Copies the snapshot from untrusted memory to replace data/bss/heap and stack
 // for the calling thread in the current enclave.
 Status RestoreForFork(const SnapshotLayout &snapshot_layout);
-
-// Does a handshake between the parent and child enclave, and parent encrypts
-// and transfers the snapshot key to the child.
-Status TransferSecureSnapshotKey(
-    const ForkHandshakeConfig &fork_handshake_config);
 
 }  // namespace asylo
 

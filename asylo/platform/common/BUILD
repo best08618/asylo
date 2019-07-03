@@ -69,7 +69,6 @@ cc_library(
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
         "//asylo/util:logging",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/synchronization",
     ],
@@ -112,19 +111,7 @@ cc_library(
     deps = [
         "//asylo/util:logging",
         "@com_google_absl//absl/base:core_headers",
-    ],
-)
-
-# Tests for the bridge functions
-cc_test(
-    name = "bridge_functions_test",
-    srcs = ["bridge_functions_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        ":bridge_types",
-        "//asylo/test/util:finite_domain_fuzz",
-        "//asylo/test/util:test_main",
-        "@com_google_googletest//:gtest",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 
@@ -141,7 +128,6 @@ cc_library(
     hdrs = ["bridge_proto_serializer.h"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        ":bridge_types",
         ":bridge_types_proto_cc",
         "@com_google_absl//absl/strings",
     ],
@@ -169,17 +155,6 @@ cc_library(
     name = "spin_lock",
     hdrs = ["spin_lock.h"],
     copts = ASYLO_DEFAULT_COPTS,
-)
-
-cc_test(
-    name = "spin_lock_test",
-    srcs = ["spin_lock_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        ":spin_lock",
-        "//asylo/test/util:test_main",
-        "@com_google_googletest//:gtest",
-    ],
 )
 
 # Provide a unique pointer for malloc'd memory.

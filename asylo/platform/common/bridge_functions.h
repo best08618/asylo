@@ -22,6 +22,8 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <signal.h>
+#include <stdint.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -31,8 +33,6 @@
 #include <sys/wait.h>
 #include <syslog.h>
 #include <utime.h>
-#include <csignal>
-#include <cstdint>
 
 #include "asylo/platform/common/bridge_types.h"
 
@@ -125,22 +125,6 @@ int FromBridgeAddressInfoFlags(int bridge_ai_flag);
 // flags are provided.
 int ToBridgeAddressInfoFlags(int ai_flag);
 
-// Converts |eai_code| to a bridge address info error code. Returns 1 if
-// |eai_code| is not recognized, since error codes are conventionally negative.
-int ToBridgeAddressInfoErrors(int eai_code);
-
-// Converts |bridge_eai_code| from a bridge address info error code. Returns -1
-// if |bridge_eai_code| is not recognized.
-int FromBridgeAddressInfoErrors(int bridge_eai_code);
-
-// Converts |bridge_sock_type| from a bridge socket type value. Returns -1 if
-// |bridge_sock_type| is not recognized.
-int FromBridgeSocketType(int bridge_sock_type);
-
-// Converts |sock_type| to a bridge socket type value. Returns -1 if |sock_type|
-// is not recognized.
-int ToBridgeSocketType(int sock_type);
-
 // Converts |bridge_syslog_option| to a runtime syslog option. Returns 0 if
 // |bridge_syslog_option| does not contain any supported options.
 int FromBridgeSysLogOption(int bridge_syslog_option);
@@ -164,12 +148,6 @@ int FromBridgeSysLogPriority(int bridge_syslog_priority);
 // Converts |syslog_priority| to a bridge syslog priority. Returns 0 if
 // |syslog_priority| does not contain a supported facility or level.
 int ToBridgeSysLogPriority(int syslog_priority);
-
-// Converts |bridge_fcntl_cmd| to a runtime fcntl command.
-int FromBridgeFcntlCmd(int bridge_fcntl_cmd);
-
-// Converts |fcntl_cmd| to a bridge fcntl command.
-int ToBridgeFcntlCmd(int fcntl_cmd);
 
 // Converts |bridge_file_flag| to a runtime file flag.
 int FromBridgeFileFlags(int bridge_file_flag);
@@ -197,30 +175,16 @@ struct stat *FromBridgeStat(const struct bridge_stat *bridge_statbuf,
 struct bridge_stat *ToBridgeStat(const struct stat *statbuf,
                                  struct bridge_stat *bridge_statbuf);
 
-// Converts |af_family| to a bridge af family. Returns BRIDGE_AF_UNSUPPORTED if
-// |af_family| is not supported.
+// Converts |af_family| to a bridge af family. If |af_family| is not supported,
+// we return a special value (BRIDGE_AF_UNSUPPORTED) to indicate this.
 AfFamily ToBridgeAfFamily(int af_family);
 
-// Converts |bridge_af_family| to a host af family. Returns -1 if
-// |bridge_af_family| is not supported.
-int FromBridgeAfFamily(int bridge_af_family);
+// Converts |bridge_af_family| to a host af family. If this value is not
+// supported, we return -1.
+int FromBridgeAfFamily(AfFamily bridge_af_family);
 
-// Converts |sock_type| to a bridge socket type. Returns BRIDGE_SOCK_UNSUPPORTED
-// if |sock_type| is not supported.
-int ToBridgeSocketType(int sock_type);
-
-// Converts |bridge_sock_type| to a socket type. Returns -1 if
-// |bridge_sock_type| is not supported.
-int FromBridgeSocketType(int bridge_sock_type);
-
-// Copies |bridge_addr| to a runtime sockaddr. Similar to getsockname(),
-// |addrlen| is both an in and out parameter. Its value when FromBridgeSockaddr
-// is called should be the size of the buffer available at `addr`. If the
-// conversion succeeds, it will contain the length of the converted address.
-// Returns nullptr if unsuccessful. Will truncate the converted sockaddr if the
-// provided buffer is too small; callers should check to ensure they are getting
-// a complete sockaddr by ensuring the returned addrlen is not larger than the
-// size of the buffer.
+// Copies |bridge_addr| to a runtime sockaddr up to sizeof(struct
+// bridge_sockaddr). Returns nullptr if unsuccessful.
 struct sockaddr *FromBridgeSockaddr(const struct bridge_sockaddr *bridge_addr,
                                     struct sockaddr *addr, socklen_t *addrlen);
 

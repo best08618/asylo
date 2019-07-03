@@ -21,8 +21,9 @@
 #include <gtest/gtest.h>
 #include "asylo/grpc/auth/null_credentials_options.h"
 #include "asylo/grpc/auth/sgx_local_credentials_options.h"
-#include "asylo/identity/descriptions.h"
 #include "asylo/identity/identity.pb.h"
+#include "asylo/identity/null_identity/null_identity_util.h"
+#include "asylo/identity/sgx/code_identity_util.h"
 #include "asylo/test/util/proto_matchers.h"
 
 namespace asylo {
@@ -35,7 +36,7 @@ using ::testing::UnorderedElementsAre;
 class EnclaveCredentialsOptionsTest : public Test {
  protected:
   EnclaveCredentialsOptionsTest() {
-    SetSgxLocalAssertionDescription(&sgx_local_assertion_description_);
+    sgx::SetSgxLocalAssertionDescription(&sgx_local_assertion_description_);
     SetNullAssertionDescription(&null_assertion_description_);
   }
   AssertionDescription sgx_local_assertion_description_;

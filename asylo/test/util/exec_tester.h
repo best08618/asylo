@@ -25,8 +25,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/types/span.h"
-
 namespace asylo {
 namespace experimental {
 
@@ -40,8 +38,7 @@ class ExecTester {
   ///             argument should be the executable to be run.
   /// \param fd_to_check The file descriptor from which output is sent to
   ///                    CheckLine().
-  ExecTester(const std::vector<std::string> &args,
-             int fd_to_check = STDOUT_FILENO);
+  ExecTester(const std::vector<std::string> &args, int fd_to_check = STDOUT_FILENO);
   virtual ~ExecTester() = default;
 
   /// Forks and execs the subprocess with the configured arguments. Redirects
@@ -68,8 +65,7 @@ class ExecTester {
   ///         `path`. If `path` is a relative path, then the returned path is
   ///         relative to the same directory. If `path` is absolute, then so is
   ///         the returned path.
-  static std::string BuildSiblingPath(const std::string &path,
-                                      const std::string &file_name);
+  static std::string BuildSiblingPath(const std::string &path, const std::string &file_name);
 
  protected:
   /// Checks a line of the subprocess's output to the configured file descriptor
@@ -97,12 +93,11 @@ class ExecTester {
   void DoExec(int read_stdin, int write_stdin, int read_fd_to_check,
               int write_fd_to_check);
 
-  // Reads contents of `fd` into `buffer` and runs CheckLine() on each
-  // newline-terminated piece of `buffer` as written to `linebuf`. Stores any
-  // unfinished line in `linebuf`, i.e., the characters in `buffer` that follow
-  // the last newline. The accumulated CheckLine() results are stored in
-  // `result`.
-  void CheckFD(int fd, absl::Span<char> buffer, std::stringstream *linebuf,
+  // Reads contents of `fd` into `buf` and runs CheckLine() on each
+  // newline-terminated piece of `buf` as written to `linebuf`. Stores any
+  // unfinished line in `linebuf`, i.e., the characters in `buf` that follow the
+  // last newline. The accumulated CheckLine() results are stored in `result`.
+  void CheckFD(int fd, char *buf, size_t bufsize, std::stringstream *linebuf,
                bool *result);
 
   // Polls output from `pid` to `fd` and calls CheckFD() to accumulate

@@ -18,34 +18,20 @@
 
 #include "asylo/platform/common/bridge_functions.h"
 
-// Get POLLRDHUP from poll.h.
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif  // _GNU_SOURCE
-
-// Get POLL(RD|WR)(NORM|BAND) from poll.h.
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE
-#endif  // _XOPEN_SOURCE
-
 #include <fcntl.h>
-#include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
-#include <sys/socket.h>
+#include <signal.h>
+#include <stdint.h>
+#include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <utime.h>
 #include <algorithm>
-#include <csignal>
-#include <cstdint>
-#include <cstring>
-#include <unordered_map>
 
+#include "absl/container/flat_hash_map.h"
 #include "asylo/util/logging.h"
-#include "asylo/platform/common/bridge_types.h"
 
 namespace asylo {
 namespace {
@@ -92,8 +78,8 @@ bool BridgeSigIsMember(const bridge_sigset_t *bridge_set, const int sig) {
 
 void BridgeSigEmptySet(bridge_sigset_t *bridge_set) { *bridge_set = 0; }
 
-const std::unordered_map<int, int> *CreateBridgeSignalMap() {
-  auto signal_map = new std::unordered_map<int, int>;
+const absl::flat_hash_map<int, int> *CreateBridgeSignalMap() {
+  auto signal_map = new absl::flat_hash_map<int, int>;
   signal_map->insert({SIGHUP, BRIDGE_SIGHUP});
   signal_map->insert({SIGINT, BRIDGE_SIGINT});
   signal_map->insert({SIGQUIT, BRIDGE_SIGQUIT});
@@ -130,8 +116,8 @@ const std::unordered_map<int, int> *CreateBridgeSignalMap() {
   return signal_map;
 }
 
-const std::unordered_map<int, int> *GetSignalToBridgeSignalMap() {
-  static const std::unordered_map<int, int> *signal_to_bridge_signal_map =
+const absl::flat_hash_map<int, int> *GetSignalToBridgeSignalMap() {
+  static const absl::flat_hash_map<int, int> *signal_to_bridge_signal_map =
       CreateBridgeSignalMap();
   return signal_to_bridge_signal_map;
 }
@@ -227,38 +213,6 @@ void BridgeFDZero(struct BridgeFDSet *bridge_fds) {
       bridge_fds->file_descriptor_set[fd] = 0;
     }
   }
-}
-
-int FromBridgePollEvents(int events) {
-  int result = 0;
-  if (events & POLLIN) result |= BRIDGE_POLLIN;
-  if (events & POLLPRI) result |= BRIDGE_POLLPRI;
-  if (events & POLLOUT) result |= BRIDGE_POLLOUT;
-  if (events & POLLRDHUP) result |= BRIDGE_POLLRDHUP;
-  if (events & POLLERR) result |= BRIDGE_POLLERR;
-  if (events & POLLHUP) result |= BRIDGE_POLLHUP;
-  if (events & POLLNVAL) result |= BRIDGE_POLLNVAL;
-  if (events & POLLRDNORM) result |= BRIDGE_POLLRDNORM;
-  if (events & POLLRDBAND) result |= BRIDGE_POLLRDBAND;
-  if (events & POLLWRNORM) result |= BRIDGE_POLLWRNORM;
-  if (events & POLLWRBAND) result |= BRIDGE_POLLWRBAND;
-  return result;
-}
-
-int ToBridgePollEvents(int bridge_events) {
-  int result = 0;
-  if (bridge_events & BRIDGE_POLLIN) result |= POLLIN;
-  if (bridge_events & BRIDGE_POLLPRI) result |= POLLPRI;
-  if (bridge_events & BRIDGE_POLLOUT) result |= POLLOUT;
-  if (bridge_events & BRIDGE_POLLRDHUP) result |= POLLRDHUP;
-  if (bridge_events & BRIDGE_POLLERR) result |= POLLERR;
-  if (bridge_events & BRIDGE_POLLHUP) result |= POLLHUP;
-  if (bridge_events & BRIDGE_POLLNVAL) result |= POLLNVAL;
-  if (bridge_events & BRIDGE_POLLRDNORM) result |= POLLRDNORM;
-  if (bridge_events & BRIDGE_POLLRDBAND) result |= POLLRDBAND;
-  if (bridge_events & BRIDGE_POLLWRNORM) result |= POLLWRNORM;
-  if (bridge_events & BRIDGE_POLLWRBAND) result |= POLLWRBAND;
-  return result;
 }
 
 }  // namespace
@@ -433,19 +387,6 @@ int FromBridgeAddressInfoFlags(int bridge_ai_flag) {
   int ai_flag = 0;
   if (bridge_ai_flag & BRIDGE_AI_CANONNAME) ai_flag |= AI_CANONNAME;
   if (bridge_ai_flag & BRIDGE_AI_NUMERICHOST) ai_flag |= AI_NUMERICHOST;
-  if (bridge_ai_flag & BRIDGE_AI_V4MAPPED) ai_flag |= AI_V4MAPPED;
-  if (bridge_ai_flag & BRIDGE_AI_ADDRCONFIG) ai_flag |= AI_ADDRCONFIG;
-  if (bridge_ai_flag & BRIDGE_AI_ALL) ai_flag |= AI_ALL;
-  if (bridge_ai_flag & BRIDGE_AI_PASSIVE) ai_flag |= AI_PASSIVE;
-  if (bridge_ai_flag & BRIDGE_AI_NUMERICSERV) ai_flag |= AI_NUMERICSERV;
-  if (bridge_ai_flag & BRIDGE_AI_IDN) ai_flag |= AI_IDN;
-  if (bridge_ai_flag & BRIDGE_AI_CANONIDN) ai_flag |= AI_CANONIDN;
-  if (bridge_ai_flag & BRIDGE_AI_IDN_ALLOW_UNASSIGNED) {
-    ai_flag |= AI_IDN_ALLOW_UNASSIGNED;
-  }
-  if (bridge_ai_flag & BRIDGE_AI_IDN_USE_STD3_ASCII_RULES) {
-    ai_flag |= AI_IDN_USE_STD3_ASCII_RULES;
-  }
   return ai_flag;
 }
 
@@ -453,19 +394,6 @@ int ToBridgeAddressInfoFlags(int ai_flag) {
   int bridge_ai_flag = 0;
   if (ai_flag & AI_CANONNAME) bridge_ai_flag |= BRIDGE_AI_CANONNAME;
   if (ai_flag & AI_NUMERICHOST) bridge_ai_flag |= BRIDGE_AI_NUMERICHOST;
-  if (ai_flag & AI_V4MAPPED) bridge_ai_flag |= BRIDGE_AI_V4MAPPED;
-  if (ai_flag & AI_ADDRCONFIG) bridge_ai_flag |= BRIDGE_AI_ADDRCONFIG;
-  if (ai_flag & AI_ALL) bridge_ai_flag |= BRIDGE_AI_ALL;
-  if (ai_flag & AI_PASSIVE) bridge_ai_flag |= BRIDGE_AI_PASSIVE;
-  if (ai_flag & AI_NUMERICSERV) bridge_ai_flag |= BRIDGE_AI_NUMERICSERV;
-  if (ai_flag & AI_IDN) bridge_ai_flag |= BRIDGE_AI_IDN;
-  if (ai_flag & AI_CANONIDN) bridge_ai_flag |= BRIDGE_AI_CANONIDN;
-  if (ai_flag & AI_IDN_ALLOW_UNASSIGNED) {
-    bridge_ai_flag |= BRIDGE_AI_IDN_ALLOW_UNASSIGNED;
-  }
-  if (ai_flag & AI_IDN_USE_STD3_ASCII_RULES) {
-    bridge_ai_flag |= BRIDGE_AI_IDN_USE_STD3_ASCII_RULES;
-  }
   return bridge_ai_flag;
 }
 
@@ -530,86 +458,44 @@ int ToBridgeSysLogPriority(int syslog_priority) {
   int syslog_level = syslog_priority & 0x07;
   int syslog_facility = syslog_priority & ~0x07;
   return ToBridgeSysLogLevel(syslog_level) |
-         ToBridgeSysLogFacility(syslog_facility);
-}
-
-int FromBridgeFcntlCmd(int bridge_fcntl_cmd) {
-  switch (bridge_fcntl_cmd) {
-    case BRIDGE_F_GETFD:
-      return F_GETFD;
-    case BRIDGE_F_SETFD:
-      return F_SETFD;
-    case BRIDGE_F_GETFL:
-      return F_GETFL;
-    case BRIDGE_F_SETFL:
-      return F_SETFL;
-    case BRIDGE_F_GETPIPE_SZ:
-      return F_GETPIPE_SZ;
-    case BRIDGE_F_SETPIPE_SZ:
-      return F_SETPIPE_SZ;
-    default:
-      return -1;
-  }
-}
-
-int ToBridgeFcntlCmd(int fcntl_cmd) {
-  switch (fcntl_cmd) {
-    case F_GETFD:
-      return BRIDGE_F_GETFD;
-    case F_SETFD:
-      return BRIDGE_F_SETFD;
-    case F_GETFL:
-      return BRIDGE_F_GETFL;
-    case F_SETFL:
-      return BRIDGE_F_SETFL;
-    case F_GETPIPE_SZ:
-      return BRIDGE_F_GETPIPE_SZ;
-    case F_SETPIPE_SZ:
-      return BRIDGE_F_SETPIPE_SZ;
-    default:
-      return -1;
-  }
+         ToBridgeSysLogLevel(syslog_facility);
 }
 
 int FromBridgeFileFlags(int bridge_file_flag) {
   int file_flag = 0;
-  if (bridge_file_flag & BRIDGE_RDONLY) file_flag |= O_RDONLY;
-  if (bridge_file_flag & BRIDGE_WRONLY) file_flag |= O_WRONLY;
-  if (bridge_file_flag & BRIDGE_RDWR) file_flag |= O_RDWR;
-  if (bridge_file_flag & BRIDGE_CREAT) file_flag |= O_CREAT;
-  if (bridge_file_flag & BRIDGE_APPEND) file_flag |= O_APPEND;
-  if (bridge_file_flag & BRIDGE_EXCL) file_flag |= O_EXCL;
-  if (bridge_file_flag & BRIDGE_TRUNC) file_flag |= O_TRUNC;
-  if (bridge_file_flag & BRIDGE_NONBLOCK) file_flag |= O_NONBLOCK;
-  if (bridge_file_flag & BRIDGE_DIRECT) file_flag |= O_DIRECT;
-  if (bridge_file_flag & BRIDGE_O_CLOEXEC) file_flag |= O_CLOEXEC;
+  if (bridge_file_flag & RDONLY) file_flag |= O_RDONLY;
+  if (bridge_file_flag & WRONLY) file_flag |= O_WRONLY;
+  if (bridge_file_flag & RDWR) file_flag |= O_RDWR;
+  if (bridge_file_flag & CREAT) file_flag |= O_CREAT;
+  if (bridge_file_flag & APPEND) file_flag |= O_APPEND;
+  if (bridge_file_flag & EXCL) file_flag |= O_EXCL;
+  if (bridge_file_flag & TRUNC) file_flag |= O_TRUNC;
+  if (bridge_file_flag & NONBLOCK) file_flag |= O_NONBLOCK;
   return file_flag;
 }
 
 int ToBridgeFileFlags(int file_flag) {
   int bridge_file_flag = 0;
-  if (file_flag & O_RDONLY) bridge_file_flag |= BRIDGE_RDONLY;
-  if (file_flag & O_WRONLY) bridge_file_flag |= BRIDGE_WRONLY;
-  if (file_flag & O_RDWR) bridge_file_flag |= BRIDGE_RDWR;
-  if (file_flag & O_CREAT) bridge_file_flag |= BRIDGE_CREAT;
-  if (file_flag & O_APPEND) bridge_file_flag |= BRIDGE_APPEND;
-  if (file_flag & O_EXCL) bridge_file_flag |= BRIDGE_EXCL;
-  if (file_flag & O_TRUNC) bridge_file_flag |= BRIDGE_TRUNC;
-  if (file_flag & O_NONBLOCK) bridge_file_flag |= BRIDGE_NONBLOCK;
-  if (file_flag & O_DIRECT) bridge_file_flag |= BRIDGE_DIRECT;
-  if (file_flag & O_CLOEXEC) bridge_file_flag |= BRIDGE_O_CLOEXEC;
+  if (file_flag & O_RDONLY) bridge_file_flag |= RDONLY;
+  if (file_flag & O_WRONLY) bridge_file_flag |= WRONLY;
+  if (file_flag & O_RDWR) bridge_file_flag |= RDWR;
+  if (file_flag & O_CREAT) bridge_file_flag |= CREAT;
+  if (file_flag & O_APPEND) bridge_file_flag |= APPEND;
+  if (file_flag & O_EXCL) bridge_file_flag |= EXCL;
+  if (file_flag & O_TRUNC) bridge_file_flag |= TRUNC;
+  if (file_flag & O_NONBLOCK) bridge_file_flag |= NONBLOCK;
   return bridge_file_flag;
 }
 
 int FromBridgeFDFlags(int bridge_fd_flag) {
   int fd_flag = 0;
-  if (bridge_fd_flag & BRIDGE_CLOEXEC) fd_flag |= FD_CLOEXEC;
+  if (bridge_fd_flag & CLOEXEC) fd_flag |= FD_CLOEXEC;
   return fd_flag;
 }
 
 int ToBridgeFDFlags(int fd_flag) {
   int bridge_fd_flag = 0;
-  if (fd_flag & FD_CLOEXEC) bridge_fd_flag |= BRIDGE_CLOEXEC;
+  if (fd_flag & FD_CLOEXEC) bridge_fd_flag |= CLOEXEC;
   return bridge_fd_flag;
 }
 
@@ -697,79 +583,51 @@ void InitializeToZeroArray(T (&ptr)[M]) {
   memset(ptr, 0, sizeof(T) * M);
 }
 
-// Helper for implementing standard POSIX semantics for returning sockaddr
-// structures. CopySockaddr copies the sockaddr in |source|, of length
-// |source_len|, into the buffer pointed to by |addr_dest|, which has
-// |addrlen_dest| bytes available. The copy is truncated if the destination
-// buffer is too small. The number of bytes in the un-truncated structure is
-// written to addrlen_dest.
-//
-// Returns |addr_dest|.
-static struct sockaddr *CopySockaddr(void *source, socklen_t source_len,
-                                     struct sockaddr *addr_dest,
-                                     socklen_t *addrlen_dest) {
-  memcpy(addr_dest, source, std::min(*addrlen_dest, source_len));
-  *addrlen_dest = source_len;
-  return addr_dest;
-}
-
 struct sockaddr *FromBridgeSockaddr(const struct bridge_sockaddr *bridge_addr,
                                     struct sockaddr *addr, socklen_t *addrlen) {
-  if (bridge_addr == nullptr || addr == nullptr || addrlen == nullptr) {
-    return nullptr;
-  }
-  sa_family_t family = FromBridgeAfFamily(bridge_addr->sa_family);
-  if (family == AF_UNIX || family == AF_LOCAL) {
-    struct sockaddr_un sockaddr_un_out;
-    sockaddr_un_out.sun_family = family;
-    InitializeToZeroArray(sockaddr_un_out.sun_path);
-    ReinterpretCopyArray(sockaddr_un_out.sun_path,
+  if (!bridge_addr || !addr) return nullptr;
+  addr->sa_family = bridge_addr->sa_family;
+  if (addr->sa_family == AF_UNIX || addr->sa_family == AF_LOCAL) {
+    struct sockaddr_un *sockaddr_un_out =
+        reinterpret_cast<struct sockaddr_un *>(addr);
+    InitializeToZeroArray(sockaddr_un_out->sun_path);
+    ReinterpretCopyArray(sockaddr_un_out->sun_path,
                          bridge_addr->addr_un.sun_path);
-    return CopySockaddr(&sockaddr_un_out, sizeof(sockaddr_un_out), addr,
-                        addrlen);
-  } else if (family == AF_INET6) {
-    struct sockaddr_in6 sockaddr_in6_out;
-    sockaddr_in6_out.sin6_family = family;
-    sockaddr_in6_out.sin6_port = bridge_addr->addr_in6.sin6_port;
-    sockaddr_in6_out.sin6_flowinfo = bridge_addr->addr_in6.sin6_flowinfo;
-    InitializeToZeroSingle(&sockaddr_in6_out.sin6_addr);
-    ReinterpretCopySingle(&sockaddr_in6_out.sin6_addr,
+    *addrlen = sizeof(struct sockaddr_un);
+  } else if (addr->sa_family == AF_INET6) {
+    struct sockaddr_in6 *sockaddr_in6_out =
+        reinterpret_cast<struct sockaddr_in6 *>(addr);
+    sockaddr_in6_out->sin6_port = bridge_addr->addr_in6.sin6_port;
+    sockaddr_in6_out->sin6_flowinfo = bridge_addr->addr_in6.sin6_flowinfo;
+    InitializeToZeroSingle(&sockaddr_in6_out->sin6_addr);
+    ReinterpretCopySingle(&sockaddr_in6_out->sin6_addr,
                           &bridge_addr->addr_in6.sin6_addr);
-    sockaddr_in6_out.sin6_scope_id = bridge_addr->addr_in6.sin6_scope_id;
-    return CopySockaddr(&sockaddr_in6_out, sizeof(sockaddr_in6_out), addr,
-                        addrlen);
-  } else if (family == AF_INET) {
-    struct sockaddr_in sockaddr_in_out;
-    sockaddr_in_out.sin_family = family;
-    sockaddr_in_out.sin_port = bridge_addr->addr_in.sin_port;
-    InitializeToZeroSingle(&sockaddr_in_out.sin_addr);
-    ReinterpretCopySingle(&sockaddr_in_out.sin_addr,
+    sockaddr_in6_out->sin6_scope_id = bridge_addr->addr_in6.sin6_scope_id;
+    *addrlen = sizeof(sockaddr_in6);
+  } else if (addr->sa_family == AF_INET) {
+    struct sockaddr_in *sockaddr_in_out =
+        reinterpret_cast<struct sockaddr_in *>(addr);
+    sockaddr_in_out->sin_port = bridge_addr->addr_in.sin_port;
+    InitializeToZeroSingle(&sockaddr_in_out->sin_addr);
+    ReinterpretCopySingle(&sockaddr_in_out->sin_addr,
                           &bridge_addr->addr_in.sin_addr);
-    InitializeToZeroArray(sockaddr_in_out.sin_zero);
-    ReinterpretCopyArray(sockaddr_in_out.sin_zero,
+    InitializeToZeroArray(sockaddr_in_out->sin_zero);
+    ReinterpretCopyArray(sockaddr_in_out->sin_zero,
                          bridge_addr->addr_in.sin_zero);
-    return CopySockaddr(&sockaddr_in_out, sizeof(sockaddr_in_out), addr,
-                        addrlen);
-  } else if (family == AF_UNSPEC) {
-    struct sockaddr sockaddr_out;
-    sockaddr_out.sa_family = family;
-    return CopySockaddr(&sockaddr_out, sizeof(sockaddr_out), addr, addrlen);
+    *addrlen = sizeof(sockaddr_in);
   } else {
-    LOG(ERROR) << "sockaddr family is not supported: " << family;
+    LOG(ERROR) << "socket type is not supported";
     abort();
   }
+  return addr;
 }
 
 struct bridge_sockaddr *ToBridgeSockaddr(const struct sockaddr *addr,
                                          socklen_t addrlen,
                                          struct bridge_sockaddr *bridge_addr) {
   if (!addr || !bridge_addr) return nullptr;
-  bridge_addr->sa_family = ToBridgeAfFamily(addr->sa_family);
-  if (bridge_addr->sa_family == BRIDGE_AF_UNSUPPORTED) {
-    return nullptr;
-  }
-  if (bridge_addr->sa_family == BRIDGE_AF_UNIX ||
-      bridge_addr->sa_family == BRIDGE_AF_LOCAL) {
+  bridge_addr->sa_family = addr->sa_family;
+  if (bridge_addr->sa_family == AF_UNIX || bridge_addr->sa_family == AF_LOCAL) {
     if (addrlen < sizeof(struct sockaddr_un)) {
       return nullptr;
     }
@@ -778,7 +636,7 @@ struct bridge_sockaddr *ToBridgeSockaddr(const struct sockaddr *addr,
     InitializeToZeroArray(bridge_addr->addr_un.sun_path);
     ReinterpretCopyArray(bridge_addr->addr_un.sun_path,
                          sockaddr_un_in->sun_path);
-  } else if (bridge_addr->sa_family == BRIDGE_AF_INET6) {
+  } else if (bridge_addr->sa_family == AF_INET6) {
     if (addrlen < sizeof(struct sockaddr_in6)) {
       return nullptr;
     }
@@ -790,7 +648,7 @@ struct bridge_sockaddr *ToBridgeSockaddr(const struct sockaddr *addr,
     ReinterpretCopySingle(&bridge_addr->addr_in6.sin6_addr,
                           &sockaddr_in6_in->sin6_addr);
     bridge_addr->addr_in6.sin6_scope_id = sockaddr_in6_in->sin6_scope_id;
-  } else if (bridge_addr->sa_family == BRIDGE_AF_INET) {
+  } else if (bridge_addr->sa_family == AF_INET) {
     if (addrlen < sizeof(struct sockaddr_in)) {
       return nullptr;
     }
@@ -803,230 +661,37 @@ struct bridge_sockaddr *ToBridgeSockaddr(const struct sockaddr *addr,
     InitializeToZeroArray(bridge_addr->addr_in.sin_zero);
     ReinterpretCopyArray(bridge_addr->addr_in.sin_zero,
                          sockaddr_in_in->sin_zero);
-  } else if (bridge_addr->sa_family == BRIDGE_AF_UNSPEC) {
-    // Do nothing
   } else {
-    LOG(ERROR) << "sockaddr family is not supported: "
-               << bridge_addr->sa_family;
+    LOG(ERROR) << "socket type is not supported";
     abort();
   }
   return bridge_addr;
 }
 
-int FromBridgeAddressInfoErrors(int bridge_eai_code) {
-  switch (bridge_eai_code) {
-    case BRIDGE_EAI_SUCCESS:
-      return 0;
-    case BRIDGE_EAI_ADDRFAMILY:
-      return EAI_ADDRFAMILY;
-    case BRIDGE_EAI_BADFLAGS:
-      return EAI_BADFLAGS;
-    case BRIDGE_EAI_NONAME:
-      return EAI_NONAME;
-    case BRIDGE_EAI_AGAIN:
-      return EAI_AGAIN;
-    case BRIDGE_EAI_FAIL:
-      return EAI_FAIL;
-    case BRIDGE_EAI_FAMILY:
-      return EAI_FAMILY;
-    case BRIDGE_EAI_MEMORY:
-      return EAI_MEMORY;
-    case BRIDGE_EAI_NODATA:
-      return EAI_NODATA;
-    case BRIDGE_EAI_SERVICE:
-      return EAI_SERVICE;
-    case BRIDGE_EAI_SOCKTYPE:
-      return EAI_SOCKTYPE;
-    case BRIDGE_EAI_OVERFLOW:
-      return EAI_OVERFLOW;
-    case BRIDGE_EAI_INPROGRESS:
-      return EAI_INPROGRESS;
-    case BRIDGE_EAI_CANCELED:
-      return EAI_CANCELED;
-    case BRIDGE_EAI_ALLDONE:
-      return EAI_ALLDONE;
-    case BRIDGE_EAI_SYSTEM:
-      return EAI_SYSTEM;
-    default:
-      return 1;
-  }
-}
-
-int ToBridgeAddressInfoErrors(int eai_code) {
-  switch (eai_code) {
-    case 0:
-      return BRIDGE_EAI_SUCCESS;
-    case EAI_BADFLAGS:
-      return BRIDGE_EAI_BADFLAGS;
-    case EAI_NONAME:
-      return BRIDGE_EAI_NONAME;
-    case EAI_AGAIN:
-      return BRIDGE_EAI_AGAIN;
-    case EAI_FAIL:
-      return BRIDGE_EAI_FAIL;
-    case EAI_FAMILY:
-      return BRIDGE_EAI_FAMILY;
-    case EAI_SOCKTYPE:
-      return BRIDGE_EAI_SOCKTYPE;
-    case EAI_SERVICE:
-      return BRIDGE_EAI_SERVICE;
-    case EAI_MEMORY:
-      return BRIDGE_EAI_MEMORY;
-    case EAI_SYSTEM:
-      return BRIDGE_EAI_SYSTEM;
-    case EAI_OVERFLOW:
-      return BRIDGE_EAI_OVERFLOW;
-    case EAI_NODATA:
-      return BRIDGE_EAI_NODATA;
-    case EAI_ADDRFAMILY:
-      return BRIDGE_EAI_ADDRFAMILY;
-    case EAI_INPROGRESS:
-      return BRIDGE_EAI_INPROGRESS;
-    case EAI_CANCELED:
-      return BRIDGE_EAI_CANCELED;
-    case EAI_ALLDONE:
-      return BRIDGE_EAI_ALLDONE;
-    case EAI_INTR:
-      return BRIDGE_EAI_IDN_ENCODE;
-    default:
-      return BRIDGE_EAI_UNKNOWN;
-  }
-}
-
 AfFamily ToBridgeAfFamily(int af_family) {
-  // AF_UNIX and AF_LOCAL may be the same value, so they are outside the switch
-  // statement.
-  if (af_family == AF_UNIX) return BRIDGE_AF_UNIX;
-  if (af_family == AF_LOCAL) return BRIDGE_AF_LOCAL;
-  switch (af_family) {
-    case AF_INET:
-      return BRIDGE_AF_INET;
-    case AF_INET6:
-      return BRIDGE_AF_INET6;
-    case AF_UNSPEC:
-      return BRIDGE_AF_UNSPEC;
-    case AF_IPX:
-      return BRIDGE_AF_IPX;
-    case AF_NETLINK:
-      return BRIDGE_AF_NETLINK;
-    case AF_X25:
-      return BRIDGE_AF_X25;
-    case AF_AX25:
-      return BRIDGE_AF_AX25;
-    case AF_ATMPVC:
-      return BRIDGE_AF_ATMPVC;
-    case AF_APPLETALK:
-      return BRIDGE_AF_APPLETALK;
-    case AF_PACKET:
-      return BRIDGE_AF_PACKET;
-    case AF_ALG:
-      return BRIDGE_AF_ALG;
-    default:
-      LOG(ERROR) << "Unsupported address family: " << af_family;
-      return BRIDGE_AF_UNSUPPORTED;
+  if (af_family == AF_INET) {
+    return BRIDGE_AF_INET;
+  } else if (af_family == AF_INET6) {
+    return BRIDGE_AF_INET6;
   }
+  return BRIDGE_AF_UNSUPPORTED;
 }
 
-int FromBridgeAfFamily(int bridge_af_family) {
-  switch (bridge_af_family) {
-    case BRIDGE_AF_INET:
-      return AF_INET;
-    case BRIDGE_AF_INET6:
-      return AF_INET6;
-    case BRIDGE_AF_UNSPEC:
-      return AF_UNSPEC;
-    case BRIDGE_AF_UNIX:
-      return AF_UNIX;
-    case BRIDGE_AF_LOCAL:
-      return AF_LOCAL;
-    case BRIDGE_AF_IPX:
-      return AF_IPX;
-    case BRIDGE_AF_NETLINK:
-      return AF_NETLINK;
-    case BRIDGE_AF_X25:
-      return AF_X25;
-    case BRIDGE_AF_AX25:
-      return AF_AX25;
-    case BRIDGE_AF_ATMPVC:
-      return AF_ATMPVC;
-    case BRIDGE_AF_APPLETALK:
-      return AF_APPLETALK;
-    case BRIDGE_AF_PACKET:
-      return AF_PACKET;
-    case BRIDGE_AF_ALG:
-      return AF_ALG;
-    default:
-      return AF_UNSPEC;
+int FromBridgeAfFamily(AfFamily bridge_af_family) {
+  if (bridge_af_family == BRIDGE_AF_INET) {
+    return AF_INET;
+  } else if (bridge_af_family == BRIDGE_AF_INET6) {
+    return AF_INET6;
   }
-}
-
-int FromBridgeSocketType(int bridge_sock_type) {
-  int sock_type = 0;
-  int enum_bits = bridge_sock_type & (~BRIDGE_SOCK_TYPE_FLAGS);
-  switch (enum_bits) {
-    case BRIDGE_SOCK_STREAM:
-      sock_type = SOCK_STREAM;
-      break;
-    case BRIDGE_SOCK_DGRAM:
-      sock_type = SOCK_DGRAM;
-      break;
-    case BRIDGE_SOCK_SEQPACKET:
-      sock_type = SOCK_SEQPACKET;
-      break;
-    case BRIDGE_SOCK_RAW:
-      sock_type = SOCK_RAW;
-      break;
-    case BRIDGE_SOCK_RDM:
-      sock_type = SOCK_RDM;
-      break;
-    case BRIDGE_SOCK_PACKET:
-      sock_type = SOCK_PACKET;
-      break;
-    default:
-      return -1;  // Unsupported
-  }
-  if (bridge_sock_type & BRIDGE_SOCK_O_NONBLOCK) sock_type |= SOCK_NONBLOCK;
-  if (bridge_sock_type & BRIDGE_SOCK_O_CLOEXEC) sock_type |= SOCK_CLOEXEC;
-  return sock_type;
-}
-
-int ToBridgeSocketType(int sock_type) {
-  constexpr int kSockTypeFlagMask = ~(SOCK_CLOEXEC | SOCK_NONBLOCK);
-  int bridge_sock_type = 0;
-  int enum_bits = sock_type & kSockTypeFlagMask;
-  switch (enum_bits) {
-    case SOCK_STREAM:
-      bridge_sock_type = BRIDGE_SOCK_STREAM;
-      break;
-    case SOCK_DGRAM:
-      bridge_sock_type = BRIDGE_SOCK_DGRAM;
-      break;
-    case SOCK_SEQPACKET:
-      bridge_sock_type = BRIDGE_SOCK_SEQPACKET;
-      break;
-    case SOCK_RAW:
-      bridge_sock_type = BRIDGE_SOCK_RAW;
-      break;
-    case SOCK_RDM:
-      bridge_sock_type = BRIDGE_SOCK_RDM;
-      break;
-    case SOCK_PACKET:
-      bridge_sock_type = BRIDGE_SOCK_PACKET;
-      break;
-    default:
-      return BRIDGE_SOCK_UNSUPPORTED;
-  }
-  if (sock_type & SOCK_NONBLOCK) bridge_sock_type |= BRIDGE_SOCK_O_NONBLOCK;
-  if (sock_type & SOCK_CLOEXEC) bridge_sock_type |= BRIDGE_SOCK_O_CLOEXEC;
-  return bridge_sock_type;
+  return -1;
 }
 
 struct pollfd *FromBridgePollfd(const struct bridge_pollfd *bridge_fd,
                                 struct pollfd *fd) {
   if (!bridge_fd || !fd) return nullptr;
   fd->fd = bridge_fd->fd;
-  fd->events = FromBridgePollEvents(bridge_fd->events);
-  fd->revents = FromBridgePollEvents(bridge_fd->revents);
+  fd->events = bridge_fd->events;
+  fd->revents = bridge_fd->revents;
   return fd;
 }
 
@@ -1034,8 +699,8 @@ struct bridge_pollfd *ToBridgePollfd(const struct pollfd *fd,
                                      struct bridge_pollfd *bridge_fd) {
   if (!fd || !bridge_fd) return nullptr;
   bridge_fd->fd = fd->fd;
-  bridge_fd->events = ToBridgePollEvents(fd->events);
-  bridge_fd->revents = ToBridgePollEvents(fd->revents);
+  bridge_fd->events = fd->events;
+  bridge_fd->revents = fd->revents;
   return bridge_fd;
 }
 

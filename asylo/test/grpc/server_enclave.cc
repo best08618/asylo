@@ -26,9 +26,9 @@
 
 namespace asylo {
 
-// Creates an enclave application hosting a simple gRPC server.
+// Creates an enclave application hosting a simple gRPC server with SGX local
+// credentials.
 TrustedApplication *BuildTrustedApplication() {
-  // The client uses bidirectional SGX local attestation.
   return new EnclaveServer(
       absl::make_unique<test::MessengerServer1>(),
       EnclaveServerCredentials(BidirectionalSgxLocalCredentialsOptions()));

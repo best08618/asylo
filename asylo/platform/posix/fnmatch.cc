@@ -20,8 +20,12 @@
 
 #include <stdlib.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
-int fnmatch(const char *pattern, const char *string, int flags) { abort(); }
+int fnmatch(const char *pattern, const char *std::string, int flags) { abort(); }
 
+#ifdef __cplusplus
 }  // extern "C"
+#endif

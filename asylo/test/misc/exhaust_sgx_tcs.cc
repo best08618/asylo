@@ -20,10 +20,10 @@
 
 #include <cstdio>
 #include <memory>
+#include <mutex>
 #include <thread>
 
 #include "absl/memory/memory.h"
-#include "absl/synchronization/mutex.h"
 #include "asylo/test/util/enclave_test_application.h"
 #include "asylo/util/status.h"
 
@@ -31,15 +31,13 @@ namespace asylo {
 namespace {
 
 static volatile int cc11_wait_count = 0;
-static absl::Mutex cc11_mutex;
+static std::mutex cc11_mutex;
 
-// Must be greater than or equal to the TCS number, since the main thread also
-// consumes a TCS.
-constexpr int stop_on_count = 3;
+constexpr int stop_on_count = 4;  // Must be greater than TCS number.
 
 void cc11_increment_count_and_wait() {
   {
-    absl::MutexLock lock(&cc11_mutex);
+    std::lock_guard<std::mutex> lock(cc11_mutex);
     ++cc11_wait_count;
   }
   while (cc11_wait_count < stop_on_count) {
@@ -52,10 +50,9 @@ class ExhaustTcsEnclave : public TrustedApplication {
   Status Run(const EnclaveInput &, EnclaveOutput *) override {
     std::vector<std::unique_ptr<std::thread>> threads;
     for (int i = 0; i < stop_on_count; ++i) {
-      threads.push_back(
-          absl::make_unique<std::thread>(cc11_increment_count_and_wait));
+      threads[i] =
+          absl::make_unique<std::thread>(cc11_increment_count_and_wait);
     }
-
     for (auto &thread : threads) {
       thread->join();
     }

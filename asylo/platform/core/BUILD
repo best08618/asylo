@@ -22,8 +22,6 @@ package(
 
 exports_files(["LICENSE"])
 
-load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave_configuration")
-load("//asylo/bazel:asylo.bzl", "cc_enclave_test", "ASYLO_ALL_BACKENDS")
 load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 
 # Core untrusted Asylo components.
@@ -43,7 +41,6 @@ cc_library(
         ":shared_name",
         ":shared_resource_manager",
         "//asylo:enclave_proto_cc",
-        "//asylo/platform/arch:fork_proto_cc",
         "//asylo/platform/common:time_util",
         "//asylo/util:logging",
         "//asylo/util:status",
@@ -66,7 +63,6 @@ cc_library(
     hdrs = ["trusted_global_state.h"],
     copts = ASYLO_DEFAULT_COPTS,
     linkstatic = 1,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         "//asylo:enclave_proto_cc",
         "//asylo/util:status",
@@ -84,7 +80,6 @@ cc_library(
     ],
     copts = ASYLO_DEFAULT_COPTS,
     linkstatic = 1,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         ":shared_name",
         ":trusted_global_state",
@@ -103,16 +98,12 @@ cc_library(
     hdrs = ["trusted_application.h"],
     copts = ASYLO_DEFAULT_COPTS,
     linkstatic = 1,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         ":shared_name",
         ":trusted_core",
-        ":untrusted_cache_malloc",
         "//asylo:enclave_proto_cc",
         "//asylo/identity:init",
-        "//asylo/platform/arch:fork_proto_cc",
         "//asylo/platform/arch:trusted_arch",
-        "//asylo/platform/arch:trusted_fork",
         "//asylo/platform/posix/io:io_manager",
         "//asylo/platform/posix/signal:signal_manager",
         "//asylo/platform/posix/threading:thread_manager",
@@ -143,7 +134,6 @@ cc_library(
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
         ":atomic",
-        ":untrusted_cache_malloc",
         "//asylo/platform/arch:trusted_arch",
     ],
 )
@@ -217,49 +207,5 @@ cc_test(
         "//asylo/util:status",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest",
-    ],
-)
-
-# Singleton class responsible for allocating shared buffers between trusted
-# and untrusted code.
-cc_library(
-    name = "untrusted_cache_malloc",
-    srcs = ["untrusted_cache_malloc.cc"],
-    hdrs = ["untrusted_cache_malloc.h"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo/platform/arch:trusted_arch",
-        "//asylo/platform/common:memory",
-        "//asylo/platform/common:spin_lock",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/memory",
-    ],
-)
-
-sgx_enclave_configuration(
-    name = "many_threads_enclave_config",
-    tcs_num = "1000",
-)
-
-cc_enclave_test(
-    name = "untrusted_cache_malloc_test",
-    srcs = ["untrusted_cache_malloc_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    enclave_config = ":many_threads_enclave_config",
-    deps = [
-        "//asylo/platform/core:untrusted_cache_malloc",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "bridge_msghdr_wrapper",
-    srcs = ["bridge_msghdr_wrapper.cc"],
-    hdrs = ["bridge_msghdr_wrapper.h"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        ":untrusted_cache_malloc",
-        "//asylo/platform/arch:trusted_arch",
-        "//asylo/platform/common:bridge_types",
     ],
 )

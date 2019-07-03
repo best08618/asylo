@@ -18,11 +18,11 @@
 
 #include "asylo/platform/core/trusted_application.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/ucontext.h>
 #include <unistd.h>
 #include <cerrno>
-#include <cstdio>
-#include <cstdlib>
 #include <string>
 
 #include "absl/memory/memory.h"
@@ -36,7 +36,6 @@
 #include "asylo/platform/common/bridge_functions.h"
 #include "asylo/platform/core/shared_name_kind.h"
 #include "asylo/platform/core/trusted_global_state.h"
-#include "asylo/platform/core/untrusted_cache_malloc.h"
 #include "asylo/platform/posix/io/io_manager.h"
 #include "asylo/platform/posix/io/native_paths.h"
 #include "asylo/platform/posix/io/random_devices.h"
@@ -98,7 +97,7 @@ class StatusSerializer {
 
     // Serialize to a trusted buffer instead of an untrusted buffer because the
     // serialization routine may rely on read backs for correctness.
-    *output_len_ = output_proto_->ByteSizeLong();
+    *output_len_ = output_proto_->ByteSize();
     std::unique_ptr<char[]> trusted_output(new char[*output_len_]);
     if (!output_proto_->SerializeToArray(trusted_output.get(), *output_len_)) {
       *output_ = nullptr;
@@ -106,12 +105,7 @@ class StatusSerializer {
       LogError(status);
       return 1;
     }
-
-    // Instance of the global memory pool singleton.
-    asylo::UntrustedCacheMalloc *untrusted_cache_malloc =
-        asylo::UntrustedCacheMalloc::Instance();
-    *output_ =
-        reinterpret_cast<char *>(untrusted_cache_malloc->Malloc(*output_len_));
+    *output_ = reinterpret_cast<char *>(enc_untrusted_malloc(*output_len_));
     memcpy(*output_, trusted_output.get(), *output_len_);
     return 0;
   }
@@ -259,20 +253,6 @@ extern "C" {
 
 int __asylo_user_init(const char *name, const char *config, size_t config_len,
                       char **output, size_t *output_len) {
-  // Destroys the global memory pool singleton if enclave initialization was
-  // unsuccessful.
-  struct InitCleaner {
-    bool enclave_was_initialized = false;
-
-    ~InitCleaner() {
-      if (!enclave_was_initialized) {
-        // Delete instance of the global memory pool singleton freeing all
-        // memory held by the pool.
-        delete asylo::UntrustedCacheMalloc::Instance();
-      }
-    }
-  } init_cleaner;
-
   Status status = VerifyOutputArguments(output, output_len);
   if (!status.ok()) {
     return 1;
@@ -302,7 +282,6 @@ int __asylo_user_init(const char *name, const char *config, size_t config_len,
     return status_serializer.Serialize(status);
   }
 
-  init_cleaner.enclave_was_initialized = true;
   trusted_application->SetState(EnclaveState::kRunning);
   return status_serializer.Serialize(status);
 }
@@ -366,13 +345,6 @@ int __asylo_user_fini(const char *input, size_t input_len, char **output,
     trusted_application->SetState(EnclaveState::kRunning);
     return status_serializer.Serialize(status);
   }
-
-  ThreadManager *thread_manager = ThreadManager::GetInstance();
-  thread_manager->Finalize();
-
-  // Delete instance of the global memory pool singleton freeing all memory held
-  // by the pool.
-  delete asylo::UntrustedCacheMalloc::Instance();
 
   trusted_application->SetState(EnclaveState::kFinalized);
   return status_serializer.Serialize(status);
@@ -440,19 +412,11 @@ int __asylo_take_snapshot(char **output, size_t *output_len) {
   StatusSerializer<EnclaveOutput> status_serializer(
       &enclave_output, enclave_output.mutable_status(), output, output_len);
 
-  asylo::StatusOr<const asylo::EnclaveConfig *> config_result =
-      asylo::GetEnclaveConfig();
-
-  if (!config_result.ok()) {
-    return status_serializer.Serialize(config_result.status());
-  }
-
-  const asylo::EnclaveConfig *config = config_result.ValueOrDie();
-  if (!config->has_enable_fork() || !config->enable_fork()) {
-    status = Status(error::GoogleError::FAILED_PRECONDITION,
-                    "Insecure fork not enabled");
-    return status_serializer.Serialize(status);
-  }
+#ifndef INSECURE_DEBUG_FORK_ENABLED
+  status = Status(error::GoogleError::FAILED_PRECONDITION,
+                  "Insecure fork not enabled");
+  return status_serializer.Serialize(status);
+#endif  // INSECURE_DEBUG_FORK_ENABLED
 
   TrustedApplication *trusted_application = GetApplicationInstance();
   if (trusted_application->GetState() != EnclaveState::kRunning) {
@@ -474,19 +438,11 @@ int __asylo_restore(const char *input, size_t input_len, char **output,
 
   StatusSerializer<StatusProto> status_serializer(output, output_len);
 
-  asylo::StatusOr<const asylo::EnclaveConfig *> config_result =
-      asylo::GetEnclaveConfig();
-
-  if (!config_result.ok()) {
-    return status_serializer.Serialize(config_result.status());
-  }
-
-  const asylo::EnclaveConfig *config = config_result.ValueOrDie();
-  if (!config->has_enable_fork() || !config->enable_fork()) {
-    status = Status(error::GoogleError::FAILED_PRECONDITION,
-                    "Insecure fork not enabled");
-    return status_serializer.Serialize(status);
-  }
+#ifndef INSECURE_DEBUG_FORK_ENABLED
+  status = Status(error::GoogleError::FAILED_PRECONDITION,
+                  "Insecure fork not enabled");
+  return status_serializer.Serialize(status);
+#endif  // INSECURE_DEBUG_FORK_ENABLED
 
   asylo::SnapshotLayout snapshot_layout;
   if (!snapshot_layout.ParseFromArray(input, input_len)) {
@@ -503,33 +459,6 @@ int __asylo_restore(const char *input, size_t input_len, char **output,
   }
 
   status = RestoreForFork(snapshot_layout);
-  return status_serializer.Serialize(status);
-}
-
-int __asylo_transfer_secure_snapshot_key(const char *input, size_t input_len,
-                                         char **output, size_t *output_len) {
-  Status status = VerifyOutputArguments(output, output_len);
-  if (!status.ok()) {
-    return 1;
-  }
-
-  StatusSerializer<StatusProto> status_serializer(output, output_len);
-
-  asylo::ForkHandshakeConfig fork_handshake_config;
-  if (!fork_handshake_config.ParseFromArray(input, input_len)) {
-    status = Status(error::GoogleError::INVALID_ARGUMENT,
-                    "Failed to parse HandshakeInput");
-    return status_serializer.Serialize(status);
-  }
-
-  TrustedApplication *trusted_application = GetApplicationInstance();
-  if (trusted_application->GetState() != EnclaveState::kRunning) {
-    status = Status(error::GoogleError::FAILED_PRECONDITION,
-                    "Enclave not in state RUNNING");
-    return status_serializer.Serialize(status);
-  }
-
-  status = TransferSecureSnapshotKey(fork_handshake_config);
   return status_serializer.Serialize(status);
 }
 

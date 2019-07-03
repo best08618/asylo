@@ -35,11 +35,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd,
     errno = ENOSYS;
     return MAP_FAILED;
   }
-  void *ptr = memalign(kPageSize, length);
-  if (ptr == nullptr) {
-    return MAP_FAILED;
-  }
-
+  void* ptr = memalign(kPageSize, length);
   memset(ptr, 0, length);
   return ptr;
 }
@@ -57,7 +53,7 @@ int posix_memalign(void **memptr, size_t alignment, size_t size) {
     return 0;
   }
 
-  void *ptr = memalign(alignment, size);
+  void* ptr = memalign(alignment, size);
 
   // From the man page: "On Linux (and other systems), posix_memalign() does not
   // modify memptr on failure.  A requirement standardizing this behavior was
@@ -68,31 +64,6 @@ int posix_memalign(void **memptr, size_t alignment, size_t size) {
 
   *memptr = ptr;
   return 0;
-}
-
-int mlock(const void *addr, size_t len) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int mlock2(const void *addr, size_t len, int flags) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int munlock(const void *addr, size_t len) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int mlockall(int flags) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int munlockall(void) {
-  errno = ENOSYS;
-  return -1;
 }
 
 }  // extern "C"

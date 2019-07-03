@@ -32,48 +32,30 @@ asylo_proto_library(
     visibility = ["//asylo:implementation"],
 )
 
-# A generic cryptor wrapping an AEAD key and a NonceGeneratorInterface.
-cc_library(
-    name = "aead_cryptor",
-    srcs = ["aead_cryptor.cc"],
-    hdrs = ["aead_cryptor.h"],
-    copts = ASYLO_DEFAULT_COPTS,
-    visibility = ["//visibility:public"],
-    deps = [
-        ":aead_key",
-        ":algorithms_proto_cc",
-        ":nonce_generator_interface",
-        ":random_nonce_generator",
-        "//asylo/crypto/util:byte_container_view",
-        "//asylo/util:status",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-# Tests for AeadCryptor class.
-cc_test(
-    name = "aead_cryptor_test",
-    srcs = ["aead_cryptor_test.cc"],
-    deps = [
-        ":aead_cryptor",
-        ":aead_test_vector",
-        "//asylo/test/util:status_matchers",
-        "//asylo/test/util:test_main",
-        "//asylo/util:cleansing_types",
-        "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-# Implementation of AeadKey.
+# Defines a C++ interface for AEAD keys.
 cc_library(
     name = "aead_key",
-    srcs = ["aead_key.cc"],
     hdrs = ["aead_key.h"],
     copts = ASYLO_DEFAULT_COPTS,
     visibility = ["//asylo:implementation"],
     deps = [
+        ":algorithms_proto_cc",
+        "//asylo/crypto/util:byte_container_view",
+        "//asylo/util:cleansing_types",
+        "//asylo/util:status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+# Implementation of AeadKey for AES-GCM.
+cc_library(
+    name = "aes_gcm_key",
+    srcs = ["aes_gcm_key.cc"],
+    hdrs = ["aes_gcm_key.h"],
+    copts = ASYLO_DEFAULT_COPTS,
+    visibility = ["//asylo:implementation"],
+    deps = [
+        ":aead_key",
         ":algorithms_proto_cc",
         "//asylo/crypto/util:bssl_util",
         "//asylo/crypto/util:byte_container_view",
@@ -86,27 +68,13 @@ cc_library(
     ],
 )
 
-# A class wrapping the setup for AEAD test vectors.
-cc_library(
-    name = "aead_test_vector",
-    testonly = 1,
-    srcs = ["aead_test_vector.cc"],
-    hdrs = ["aead_test_vector.h"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo/util:cleansing_types",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-# Tests for AeadKey class.
+# Tests for AesGcmKey class.
 cc_test(
-    name = "aead_key_test",
-    srcs = ["aead_key_test.cc"],
+    name = "aes_gcm_key_test",
+    srcs = ["aes_gcm_key_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        ":aead_key",
-        ":aead_test_vector",
+        ":aes_gcm_key",
         ":algorithms_proto_cc",
         "//asylo/crypto/util:bytes",
         "//asylo/test/util:status_matchers",

@@ -21,10 +21,10 @@ licenses(["notice"])  # Apache v2.0
 load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave", "sgx_enclave_configuration")
 load(
     "//asylo/bazel:asylo.bzl",
+    "enclave_test",
     "copy_from_host",
     "cc_enclave_test",
     "cc_test",
-    "sgx_enclave_test",
 )
 load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 load("//asylo/bazel:proto.bzl", "asylo_proto_library")
@@ -160,7 +160,7 @@ TEST_DEPS_COMMON = [
 ]
 
 # Smoke tests for enclaves; currently identical to hello_world_test.
-sgx_enclave_test(
+enclave_test(
     name = "enclave_smoke_test",
     srcs = ["hello_world_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -174,9 +174,7 @@ cc_enclave_test(
     srcs = ["threaded_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/synchronization",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -200,14 +198,12 @@ sgx_enclave(
 
 # Note that a naive enclave simulator that does not respect the enclave
 # configuration will not pass this test.
-sgx_enclave_test(
+enclave_test(
     name = "exhaust_sgx_tcs_test",
     srcs = ["exhaust_sgx_tcs_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     enclaves = {"enclave": ":exhaust_sgx_tcs.so"},
-    tags = [
-        "noregression",
-    ],
+    tags = ["noregression"],
     test_args = ["--enclave_path='{enclave}'"],
     deps = TEST_DEPS_COMMON,
 )
@@ -269,11 +265,10 @@ cc_enclave_test(
     srcs = ["mutex_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        "//asylo/test/util:pthread_test_util",
         "//asylo/test/util:status_matchers",
+        "//asylo/test/util:test_util",
         "//asylo/util:logging",
         "//asylo/util:status",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/synchronization",
         "@com_google_googletest//:gtest",
     ],
@@ -284,8 +279,8 @@ cc_enclave_test(
     srcs = ["condvar_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        "//asylo/test/util:pthread_test_util",
         "//asylo/test/util:status_matchers",
+        "//asylo/test/util:test_util",
         "//asylo/util:logging",
         "//asylo/util:status",
         "@com_google_absl//absl/synchronization",
@@ -297,24 +292,10 @@ cc_enclave_test(
     name = "sem_test",
     srcs = ["sem_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
+    tags = ["noregression"],
     deps = [
-        "//asylo/test/util:pthread_test_util",
         "//asylo/test/util:status_matchers",
-        "//asylo/util:logging",
-        "//asylo/util:status",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_enclave_test(
-    name = "rwlock_test",
-    srcs = ["rwlock_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo/test/util:pthread_test_util",
-        "//asylo/test/util:status_matchers",
-        "//asylo/test/util:test_main",
+        "//asylo/test/util:test_util",
         "//asylo/util:logging",
         "//asylo/util:status",
         "@com_google_absl//absl/synchronization",
@@ -327,7 +308,11 @@ cc_enclave_test(
     srcs = ["memory_layout_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        "@com_google_absl//absl/memory",
+        "//asylo/test/util:status_matchers",
+        "//asylo/test/util:test_util",
+        "//asylo/util:logging",
+        "//asylo/util:status",
+        "@com_google_absl//absl/synchronization",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -343,7 +328,7 @@ cc_test(
     ],
 )
 
-sgx_enclave_test(
+enclave_test(
     name = "active_enclave_signal_test",
     srcs = ["active_enclave_signal_test_driver.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -357,7 +342,7 @@ sgx_enclave_test(
     ] + TEST_DEPS_COMMON,
 )
 
-sgx_enclave_test(
+enclave_test(
     name = "inactive_enclave_signal_test",
     srcs = ["inactive_enclave_signal_test_driver.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -368,7 +353,7 @@ sgx_enclave_test(
     ] + TEST_DEPS_COMMON,
 )
 
-sgx_enclave_test(
+enclave_test(
     name = "error_propagation_test",
     srcs = ["error_propagation_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -377,7 +362,7 @@ sgx_enclave_test(
     deps = TEST_DEPS_COMMON,
 )
 
-sgx_enclave_test(
+enclave_test(
     name = "logging_test",
     srcs = ["logging_test_driver.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -396,7 +381,6 @@ cc_binary(
     deps = [
         "//asylo:enclave_client",
         "@com_google_absl//absl/memory",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -405,7 +389,7 @@ copy_from_host(
     target = "double_die",
 )
 
-sgx_enclave_test(
+enclave_test(
     name = "die_test",
     srcs = ["die_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -433,7 +417,7 @@ copy_from_host(
     target = "exception_app",
 )
 
-sgx_enclave_test(
+enclave_test(
     name = "exception_test",
     srcs = ["exception_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -450,7 +434,7 @@ sgx_enclave_test(
 TEST_SECTION_NAME = "enclave"
 
 # Tests that embedded enclaves work.
-sgx_enclave_test(
+enclave_test(
     name = "embedded_enclave_test",
     srcs = ["embedded_enclave_test_driver.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -467,24 +451,4 @@ sgx_enclave_test(
         "@com_github_gflags_gflags//:gflags_nothreads",
         "@com_google_googletest//:gtest",
     ],
-)
-
-sgx_enclave(
-    name = "threaded_finalize.so",
-    srcs = ["threaded_finalize.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo:enclave_runtime",
-        "//asylo/test/util:enclave_test_application",
-        "//asylo/util:status",
-    ],
-)
-
-sgx_enclave_test(
-    name = "threaded_finalize_test",
-    srcs = ["hello_world_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    enclaves = {"enclave": ":threaded_finalize.so"},
-    test_args = ["--enclave_path='{enclave}'"],
-    deps = TEST_DEPS_COMMON,
 )

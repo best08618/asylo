@@ -26,12 +26,11 @@
 #include "asylo/crypto/sha256_hash.h"
 #include "asylo/crypto/util/bytes.h"
 #include "asylo/crypto/util/trivial_object_util.h"
-#include "asylo/identity/descriptions.h"
 #include "asylo/identity/sgx/code_identity_constants.h"
 #include "asylo/identity/sgx/code_identity_util.h"
 #include "asylo/identity/sgx/identity_key_management_structs.h"
 #include "asylo/identity/sgx/local_assertion.pb.h"
-#include "asylo/identity/sgx/sgx_local_assertion_authority_config.pb.h"
+#include "asylo/platform/core/trusted_global_state.h"
 #include "asylo/util/status_macros.h"
 
 namespace asylo {
@@ -47,18 +46,16 @@ Status SgxLocalAssertionVerifier::Initialize(const std::string &config) {
                   "Already initialized");
   }
 
-  SgxLocalAssertionAuthorityConfig authority_config;
-  if (!authority_config.ParseFromString(config)) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
-                  "Could not parse input config");
-  }
+  const EnclaveConfig *enclave_config;
+  ASYLO_ASSIGN_OR_RETURN(enclave_config, GetEnclaveConfig());
 
-  if (!authority_config.has_attestation_domain()) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
+  if (!enclave_config->host_config().has_local_attestation_domain()) {
+    return Status(error::GoogleError::INTERNAL,
                   "Config is missing attestation domain");
   }
 
-  attestation_domain_ = authority_config.attestation_domain();
+  attestation_domain_ =
+      enclave_config->host_config().local_attestation_domain();
 
   absl::MutexLock lock(&initialized_mu_);
   initialized_ = true;
@@ -196,7 +193,7 @@ Status SgxLocalAssertionVerifier::Verify(const std::string &user_data,
                   "Failed to serialize CodeIdentity");
   }
 
-  SetSgxIdentityDescription(peer_identity->mutable_description());
+  sgx::SetSgxIdentityDescription(peer_identity->mutable_description());
 
   return Status::OkStatus();
 }

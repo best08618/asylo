@@ -85,14 +85,11 @@ cc_test(
         ":null_assertion_generator",
         ":null_assertion_verifier",
         ":null_identity_constants",
-        "//asylo/identity:descriptions",
         "//asylo/identity:enclave_assertion_authority",
         "//asylo/identity:enclave_assertion_authority_config_proto_cc",
         "//asylo/identity:enclave_assertion_generator",
         "//asylo/identity:enclave_assertion_verifier",
-        "//asylo/identity:identity_proto_cc",
         "//asylo/identity:init",
-        "//asylo/test/util:enclave_assertion_authority_configs",
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_main",
         "@com_google_absl//absl/synchronization",
@@ -146,7 +143,6 @@ cc_library(
     srcs = ["null_identity_constants.cc"],
     hdrs = ["null_identity_constants.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    visibility = ["//asylo/identity:__subpackages__"],
 )
 
 # Utility functions for operating on null identities and assertions.
@@ -157,7 +153,6 @@ cc_library(
     visibility = ["//asylo:implementation"],
     deps = [
         ":null_identity_constants",
-        "//asylo/identity:descriptions",
         "//asylo/identity:identity_proto_cc",
     ],
 )
@@ -170,7 +165,6 @@ cc_test(
     deps = [
         ":null_identity_constants",
         ":null_identity_util",
-        "//asylo/identity:descriptions",
         "//asylo/identity:identity_proto_cc",
         "//asylo/test/util:test_main",
         "@com_google_googletest//:gtest",

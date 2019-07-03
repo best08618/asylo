@@ -26,19 +26,23 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "asylo/util/logging.h"
+#include "asylo/platform/arch/sgx/sgx_error_space.h"
 #include "asylo/platform/arch/sgx/untrusted/generated_bridge_u.h"
 #include "asylo/platform/common/bridge_functions.h"
 #include "asylo/platform/common/bridge_types.h"
-#include "asylo/platform/primitives/sgx/sgx_error_space.h"
-#include "asylo/platform/primitives/sgx/untrusted_sgx.h"
-#include "asylo/platform/primitives/untrusted_primitives.h"
-#include "asylo/platform/primitives/util/dispatch_table.h"
 #include "asylo/util/elf_reader.h"
 #include "asylo/util/file_mapping.h"
 #include "asylo/util/posix_error_space.h"
 #include "asylo/util/status_macros.h"
 
 namespace asylo {
+namespace {
+
+constexpr absl::string_view kCallingProcessBinaryFile = "/proc/self/exe";
+
+constexpr int kMaxEnclaveCreateAttempts = 5;
+
+}  // namespace
 
 
 // Enters the enclave and invokes the initialization entry-point. If the ecall
@@ -215,46 +219,29 @@ static Status restore(sgx_enclave_id_t eid, const char *input, size_t input_len,
   return Status::OkStatus();
 }
 
-// Enters the enclave and invokes the secure snapshot key transfer entry-point.
-// If the ecall fails, return a non-OK status.
-static Status transfer_secure_snapshot_key(sgx_enclave_id_t eid,
-                                           const char *input, size_t input_len,
-                                           char **output, size_t *output_len) {
-  int result;
-  bridge_size_t bridge_output_len;
-  sgx_status_t sgx_status = ecall_transfer_secure_snapshot_key(
-      eid, &result, input, static_cast<bridge_size_t>(input_len), output,
-      &bridge_output_len);
-  if (output_len) {
-    *output_len = static_cast<size_t>(bridge_output_len);
-  }
-  if (sgx_status != SGX_SUCCESS) {
-    // Return a Status object in the SGX error space.
-    return Status(sgx_status, "Call to ecall_do_handshake failed");
-  } else if (result || *output_len == 0) {
-    // Ecall succeeded but did not return a value. This indicates that the
-    // trusted code failed to propagate error information over the enclave
-    // boundary.
-    return Status(error::GoogleError::INTERNAL, "No output from enclave");
-  }
-  return Status::OkStatus();
-}
-
 StatusOr<std::unique_ptr<EnclaveClient>> SgxLoader::LoadEnclave(
-    const std::string &name, void *base_address, const size_t enclave_size,
-    const EnclaveConfig &config) const {
+    const std::string &name, void *base_address, const EnclaveConfig &config) const {
   std::unique_ptr<SgxClient> client = absl::make_unique<SgxClient>(name);
-  std::shared_ptr<primitives::Client> primitive_client;
+  client->base_address_ = base_address;
 
-  ASYLO_ASSIGN_OR_RETURN(
-      primitive_client,
-      primitives::LoadEnclave<primitives::SgxBackend>(
-          base_address, enclave_path_, enclave_size, config, debug_,
-          absl::make_unique<primitives::DispatchTable>()));
+  int updated;
+  sgx_status_t status;
+  for (int i = 0; i < kMaxEnclaveCreateAttempts; ++i) {
+    status = sgx_create_enclave(enclave_path_.c_str(), debug_, &client->token_,
+                                &updated, &client->id_,
+                                /*misc_attr=*/nullptr, &client->base_address_,
+                                config.enable_fork());
 
-  client->Sync(primitive_client);
+    if (status != SGX_INTERNAL_ERROR_ENCLAVE_CREATE_INTERRUPTED) {
+      break;
+    }
+  }
 
-  return std::unique_ptr<EnclaveClient>(std::move(client));
+  if (status != SGX_SUCCESS) {
+    return Status(status, "Failed to create an enclave");
+  }
+
+  return std::move(client);
 }
 
 StatusOr<std::unique_ptr<EnclaveLoader>> SgxLoader::Copy() const {
@@ -266,19 +253,40 @@ StatusOr<std::unique_ptr<EnclaveLoader>> SgxLoader::Copy() const {
 }
 
 StatusOr<std::unique_ptr<EnclaveClient>> SgxEmbeddedLoader::LoadEnclave(
-    const std::string &name, void *base_address, const size_t enclave_size,
-    const EnclaveConfig &config) const {
+    const std::string &name, void *base_address, const EnclaveConfig &config) const {
   std::unique_ptr<SgxClient> client = absl::make_unique<SgxClient>(name);
-  std::shared_ptr<primitives::Client> primitive_client;
+  client->base_address_ = base_address;
 
-  ASYLO_ASSIGN_OR_RETURN(
-      primitive_client,
-      primitives::LoadEnclave<primitives::SgxEmbeddedBackend>(
-          base_address, section_name_, enclave_size, config, debug_,
-          absl::make_unique<primitives::DispatchTable>()));
-  client->Sync(primitive_client);
+  FileMapping self_binary_mapping;
+  ASYLO_ASSIGN_OR_RETURN(self_binary_mapping, FileMapping::CreateFromFile(
+                                                  kCallingProcessBinaryFile));
 
-  return std::unique_ptr<EnclaveClient>(std::move(client));
+  ElfReader self_binary_reader;
+  ASYLO_ASSIGN_OR_RETURN(self_binary_reader, ElfReader::CreateFromSpan(
+                                                 self_binary_mapping.buffer()));
+
+  absl::Span<const uint8_t> enclave_buffer;
+  ASYLO_ASSIGN_OR_RETURN(enclave_buffer,
+                         self_binary_reader.GetSectionData(section_name_));
+
+  int updated;
+  sgx_status_t status;
+  for (int i = 0; i < kMaxEnclaveCreateAttempts; ++i) {
+    status = sgx_create_enclave_from_buffer(
+        const_cast<uint8_t *>(enclave_buffer.data()), enclave_buffer.size(),
+        debug_, &client->token_, &updated, &client->id_, /*misc_attr=*/nullptr,
+        &client->base_address_, config.enable_fork());
+
+    if (status != SGX_INTERNAL_ERROR_ENCLAVE_CREATE_INTERRUPTED) {
+      break;
+    }
+  }
+
+  if (status != SGX_SUCCESS) {
+    return Status(status, "Failed to create an enclave");
+  }
+
+  return std::move(client);
 }
 
 StatusOr<std::unique_ptr<EnclaveLoader>> SgxEmbeddedLoader::Copy() const {
@@ -287,15 +295,6 @@ StatusOr<std::unique_ptr<EnclaveLoader>> SgxEmbeddedLoader::Copy() const {
     return Status(error::GoogleError::INTERNAL, "Failed to create self loader");
   }
   return std::unique_ptr<EnclaveLoader>(loader.release());
-}
-
-void SgxClient::Sync(std::shared_ptr<primitives::Client> primitive_client) {
-  this->primitive_sgx_client_ =
-      std::static_pointer_cast<primitives::SgxEnclaveClient>(primitive_client);
-  this->primitive_sgx_client_->GetLaunchToken(&this->token_);
-  this->id_ = this->primitive_sgx_client_->GetEnclaveId();
-  this->base_address_ = this->primitive_sgx_client_->GetBaseAddress();
-  this->size_ = this->primitive_sgx_client_->GetEnclaveSize();
 }
 
 Status SgxClient::EnterAndInitialize(const EnclaveConfig &config) {
@@ -422,8 +421,6 @@ Status SgxClient::EnterAndHandleSignal(const EnclaveSignal &signal) {
 }
 
 Status SgxClient::EnterAndTakeSnapshot(SnapshotLayout *snapshot_layout) {
-  LOG(WARNING) << "ENCLAVE FORK IS INSECURE CURRENTLY. THE SNAPSHOT IS "
-                  "UNENCRYPTED AND IT LEAKS ALL ENCLAVE DATA!";
   char *output_buf = nullptr;
   size_t output_len = 0;
 
@@ -469,30 +466,6 @@ Status SgxClient::EnterAndRestore(const SnapshotLayout &snapshot_layout) {
   Status status;
   status.RestoreFrom(status_proto);
 
-  return status;
-}
-
-Status SgxClient::EnterAndTransferSecureSnapshotKey(
-    const ForkHandshakeConfig &fork_handshake_config) {
-  std::string buf;
-  if (!fork_handshake_config.SerializeToString(&buf)) {
-    return Status(error::GoogleError::INVALID_ARGUMENT,
-                  "Failed to serialize ForkHandshakeConfig");
-  }
-
-  char *output = nullptr;
-  size_t output_len = 0;
-
-  ASYLO_RETURN_IF_ERROR(transfer_secure_snapshot_key(
-      id_, buf.data(), buf.size(), &output, &output_len));
-
-  // Enclave entry-point was successfully invoked. |output| is guaranteed to
-  // have a value.
-  StatusProto status_proto;
-  status_proto.ParseFromArray(output, output_len);
-  Status status;
-  status.RestoreFrom(status_proto);
-
   // |output| points to an untrusted memory buffer allocated by the enclave. It
   // is the untrusted caller's responsibility to free this buffer.
   free(output);
@@ -500,10 +473,14 @@ Status SgxClient::EnterAndTransferSecureSnapshotKey(
   return status;
 }
 
-Status SgxClient::DestroyEnclave() { return primitive_sgx_client_->Destroy(); }
+Status SgxClient::DestroyEnclave() {
+  sgx_status_t rc = sgx_destroy_enclave(id_);
+  if (rc != SGX_SUCCESS) {
+    return Status(rc, "Failed to destroy an enclave");
+  }
+  return Status::OkStatus();
+}
 
 bool SgxClient::IsTcsActive() { return (sgx_is_tcs_active(id_) != 0); }
-
-void SgxClient::SetProcessId() { sgx_set_process_id(id_); }
 
 }  //  namespace asylo

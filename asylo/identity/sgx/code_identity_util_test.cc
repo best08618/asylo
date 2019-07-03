@@ -25,7 +25,6 @@
 #include <gtest/gtest.h>
 #include "asylo/crypto/util/bytes.h"
 #include "asylo/crypto/util/trivial_object_util.h"
-#include "asylo/identity/descriptions.h"
 #include "asylo/identity/identity.pb.h"
 #include "asylo/identity/sgx/attributes.pb.h"
 #include "asylo/identity/sgx/attributes_util.h"
@@ -34,7 +33,6 @@
 #include "asylo/identity/sgx/code_identity_test_util.h"
 #include "asylo/identity/sgx/fake_enclave.h"
 #include "asylo/identity/sgx/hardware_interface.h"
-#include "asylo/identity/sgx/proto_format.h"
 #include "asylo/identity/sgx/secs_attributes.h"
 #include "asylo/identity/sgx/self_identity.h"
 #include "asylo/identity/util/sha256_hash.pb.h"
@@ -255,7 +253,7 @@ TEST_F(CodeIdentityUtilTest, ExpectationValidityPositive1) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
   EXPECT_TRUE(IsValidExpectation(expectation));
 }
 
@@ -271,7 +269,7 @@ TEST_F(CodeIdentityUtilTest, ExpectationValidityPositive2) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
   EXPECT_TRUE(IsValidExpectation(expectation));
 }
 
@@ -286,7 +284,7 @@ TEST_F(CodeIdentityUtilTest, ExpectationValidityPositive3) {
   *id.mutable_mrenclave() = h_acedface_;
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
   EXPECT_TRUE(IsValidExpectation(expectation));
 }
 
@@ -303,7 +301,7 @@ TEST_F(CodeIdentityUtilTest, ExpectationValidityPositive4) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
   EXPECT_TRUE(IsValidExpectation(expectation));
 }
 
@@ -319,7 +317,7 @@ TEST_F(CodeIdentityUtilTest, ExpectationValidityNegative1) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
   EXPECT_FALSE(IsValidExpectation(expectation));
 }
 
@@ -334,7 +332,7 @@ TEST_F(CodeIdentityUtilTest, ExpectationValidityNegative2) {
   *id.mutable_mrenclave() = h_acedface_;
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
   EXPECT_FALSE(IsValidExpectation(expectation));
 }
 
@@ -355,10 +353,10 @@ TEST_F(CodeIdentityUtilTest, CodeIdentitySelfMatch) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_TRUE(result.ValueOrDie());
 }
 
@@ -377,11 +375,11 @@ TEST_F(CodeIdentityUtilTest, CodeIdentityDifferingDoNotCareFields) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAllF, attributes_all_f_);
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_TRUE(result.ValueOrDie());
 }
 
@@ -400,12 +398,12 @@ TEST_F(CodeIdentityUtilTest, CodeIdentityMrEnclaveMismatch) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAllF, attributes_all_f_);
   *id.mutable_mrenclave() = h_deadbeef_;
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 }
 
@@ -425,13 +423,13 @@ TEST_F(CodeIdentityUtilTest, CodeIdentitySignerAssignedIdentityMismatch1) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAllF, attributes_all_f_);
   *id.mutable_signer_assigned_identity() =
       MakeSignerAssignedIdentity(h_deadbeef_, 0, 0);
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 }
 
@@ -451,20 +449,20 @@ TEST_F(CodeIdentityUtilTest, CodeIdentitySignerAssignedIdentityMismatch2) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAllF, attributes_all_f_);
   *id.mutable_signer_assigned_identity() =
       MakeSignerAssignedIdentity(h_acedface_, 1, 0);
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 
   // Make sure that the identity does not match expectation even when when
   // is_mrsigner_match_required is set to false.
   expectation.mutable_match_spec()->set_is_mrsigner_match_required(false);
   result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 }
 
@@ -484,20 +482,20 @@ TEST_F(CodeIdentityUtilTest, CodeIdentitySignerAssignedIdentityMismatch3) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 1);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAllF, attributes_all_f_);
   *id.mutable_signer_assigned_identity() =
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 
   // Make sure that the identity does not match expectation even when when
   // is_mrsigner_match_required is set to false.
   expectation.mutable_match_spec()->set_is_mrsigner_match_required(false);
   result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 }
 
@@ -517,13 +515,13 @@ TEST_F(CodeIdentityUtilTest, CodeIdentitySignerAssignedIdentitySVNMatch) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAllF, attributes_all_f_);
   *id.mutable_signer_assigned_identity() =
       MakeSignerAssignedIdentity(h_acedface_, 0, 1);
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_TRUE(result.ValueOrDie());
 }
 
@@ -542,11 +540,11 @@ TEST_F(CodeIdentityUtilTest, CodeIdentityMiscSelectMismatch) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAll0, attributes_all_f_);
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 }
 
@@ -565,11 +563,11 @@ TEST_F(CodeIdentityUtilTest, CodeIdentityAttributesMismatch) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id = GetMinimalValidCodeIdentity(kLongAllF, attributes_all_0_);
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
-  ASYLO_ASSERT_OK(result);
+  ASSERT_THAT(result, IsOk());
   EXPECT_FALSE(result.ValueOrDie());
 }
 
@@ -603,7 +601,7 @@ TEST_F(CodeIdentityUtilTest, CodeIdentityMatchInvalidIdentity) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id, &expectation), IsOk());
 
   id.Clear();
   StatusOr<bool> result = MatchIdentityToExpectation(id, expectation);
@@ -628,7 +626,7 @@ TEST_F(CodeIdentityUtilTest, CodeIdentityMatchIdentityMissingMrenclave) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id1, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id1, &expectation), IsOk());
 
   CodeIdentity id2 = GetMinimalValidCodeIdentity(kLongAll5, attributes_all_5_);
   *id2.mutable_signer_assigned_identity() =
@@ -655,7 +653,7 @@ TEST_F(CodeIdentityUtilTest, CodeIdentityMatchIdentityMissingMrsigner) {
       MakeSignerAssignedIdentity(h_acedface_, 0, 0);
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetExpectation(spec, id1, &expectation));
+  EXPECT_THAT(SetExpectation(spec, id1, &expectation), IsOk());
 
   CodeIdentity id2 = GetMinimalValidCodeIdentity(kLongAll5, attributes_all_5_);
   *id2.mutable_mrenclave() = h_acedface_;
@@ -674,20 +672,15 @@ TEST_F(CodeIdentityUtilTest, ParseIdentityFromHardwareReport) {
   *tinfo = TrivialZeroObject<Targetinfo>();
   *reportdata = TrivialZeroObject<Reportdata>();
 
-  ASYLO_EXPECT_OK(GetHardwareReport(*tinfo, *reportdata, report.get()));
+  EXPECT_TRUE(GetHardwareReport(*tinfo, *reportdata, report.get()));
 
   CodeIdentity identity;
-  ASYLO_EXPECT_OK(ParseIdentityFromHardwareReport(*report, &identity));
-  EXPECT_TRUE(std::equal(
-      report->mrenclave.cbegin(), report->mrenclave.cend(),
-      identity.mrenclave().hash().cbegin(),
-      // Cast char to unsigned char before checking for equality.
-      [](const uint8_t a, const unsigned char b) { return a == b; }));
+  EXPECT_THAT(ParseIdentityFromHardwareReport(*report, &identity), IsOk());
+  EXPECT_TRUE(std::equal(report->mrenclave.cbegin(), report->mrenclave.cend(),
+                         identity.mrenclave().hash().cbegin()));
   EXPECT_TRUE(std::equal(
       report->mrsigner.cbegin(), report->mrsigner.cend(),
-      identity.signer_assigned_identity().mrsigner().hash().cbegin(),
-      // Cast char to unsigned char before checking for equality.
-      [](const uint8_t a, const unsigned char b) { return a == b; }));
+      identity.signer_assigned_identity().mrsigner().hash().cbegin()));
   EXPECT_EQ(report->isvprodid, identity.signer_assigned_identity().isvprodid());
   EXPECT_EQ(report->isvsvn, identity.signer_assigned_identity().isvsvn());
 
@@ -700,7 +693,7 @@ TEST_F(CodeIdentityUtilTest, ParseIdentityFromHardwareReport) {
 
 TEST_F(CodeIdentityUtilTest, SetDefaultMatchSpec) {
   CodeIdentityMatchSpec spec;
-  ASYLO_ASSERT_OK(SetDefaultMatchSpec(&spec));
+  ASSERT_THAT(SetDefaultMatchSpec(&spec), IsOk());
   EXPECT_FALSE(spec.is_mrenclave_match_required());
   EXPECT_TRUE(spec.is_mrsigner_match_required());
   EXPECT_EQ(spec.miscselect_match_mask(), kLongAllF);
@@ -726,16 +719,13 @@ TEST_F(CodeIdentityUtilTest, SetStrictMatchSpec) {
 TEST_F(CodeIdentityUtilTest, SetSelfCodeIdentity) {
   CodeIdentity identity;
   SetSelfCodeIdentity(&identity);
-  EXPECT_TRUE(std::equal(
-      enclave_->get_mrenclave().cbegin(), enclave_->get_mrenclave().cend(),
-      identity.mrenclave().hash().cbegin(),
-      // Cast char to unsigned char before checking for equality.
-      [](const uint8_t a, const unsigned char b) { return a == b; }));
+  EXPECT_TRUE(std::equal(enclave_->get_mrenclave().cbegin(),
+                         enclave_->get_mrenclave().cend(),
+                         identity.mrenclave().hash().cbegin()));
+
   EXPECT_TRUE(std::equal(
       enclave_->get_mrsigner().cbegin(), enclave_->get_mrsigner().cend(),
-      identity.signer_assigned_identity().mrsigner().hash().cbegin(),
-      // Cast char to unsigned char before checking for equality.
-      [](const uint8_t a, const unsigned char b) { return a == b; }));
+      identity.signer_assigned_identity().mrsigner().hash().cbegin()));
   EXPECT_EQ(enclave_->get_isvprodid(),
             identity.signer_assigned_identity().isvprodid());
   EXPECT_EQ(enclave_->get_isvsvn(),
@@ -756,11 +746,8 @@ TEST_F(CodeIdentityUtilTest, SetStrictSelfCodeIdentityExpectation) {
   SetStrictMatchSpec(&match_spec);
 
   EXPECT_THAT(expectation.reference_identity(),
-              EquivalentProto(GetSelfIdentity()->identity))
-      << FormatProto(expectation.reference_identity())
-      << FormatProto(GetSelfIdentity()->identity);
-  EXPECT_THAT(expectation.match_spec(), EquivalentProto(match_spec))
-      << FormatProto(expectation.match_spec()) << FormatProto(match_spec);
+              EquivalentProto(GetSelfIdentity()->identity));
+  EXPECT_THAT(expectation.match_spec(), EqualsProto(match_spec));
 }
 
 TEST_F(CodeIdentityUtilTest, SetDefaultSelfCodeIdentityExpectation) {
@@ -768,15 +755,13 @@ TEST_F(CodeIdentityUtilTest, SetDefaultSelfCodeIdentityExpectation) {
   SetSelfCodeIdentity(&identity);
 
   CodeIdentityMatchSpec spec;
-  ASYLO_EXPECT_OK(SetDefaultMatchSpec(&spec));
+  EXPECT_THAT(SetDefaultMatchSpec(&spec), IsOk());
 
   CodeIdentityExpectation expectation;
-  ASYLO_EXPECT_OK(SetDefaultSelfCodeIdentityExpectation(&expectation));
+  EXPECT_THAT(SetDefaultSelfCodeIdentityExpectation(&expectation), IsOk());
 
-  EXPECT_THAT(expectation.reference_identity(), EquivalentProto(identity))
-      << FormatProto(expectation.reference_identity()) << FormatProto(identity);
-  EXPECT_THAT(expectation.match_spec(), EquivalentProto(spec))
-      << FormatProto(expectation.match_spec()) << FormatProto(spec);
+  EXPECT_THAT(expectation.reference_identity(), EquivalentProto(identity));
+  EXPECT_THAT(expectation.match_spec(), EquivalentProto(spec));
 }
 
 TEST_F(CodeIdentityUtilTest, ParseSgxIdentitySuccess) {
@@ -785,10 +770,9 @@ TEST_F(CodeIdentityUtilTest, ParseSgxIdentitySuccess) {
     CodeIdentity generated_sgx_identity;
     SetRandomValidGenericIdentity(&generic_identity, &generated_sgx_identity);
     CodeIdentity parsed_sgx_identity;
-    ASYLO_ASSERT_OK(ParseSgxIdentity(generic_identity, &parsed_sgx_identity));
-    ASSERT_THAT(generated_sgx_identity, EquivalentProto(parsed_sgx_identity))
-        << FormatProto(generated_sgx_identity)
-        << FormatProto(parsed_sgx_identity);
+    ASSERT_THAT(ParseSgxIdentity(generic_identity, &parsed_sgx_identity),
+                IsOk());
+    ASSERT_THAT(generated_sgx_identity, EquivalentProto(parsed_sgx_identity));
   }
 }
 
@@ -809,10 +793,9 @@ TEST_F(CodeIdentityUtilTest, ParseSgxMatchSpecSuccess) {
 
   for (int i = 0; i < 10000; i++) {
     SetRandomValidGenericMatchSpec(&generic_match_spec, &generated_sgx_spec);
-    ASYLO_ASSERT_OK(ParseSgxMatchSpec(generic_match_spec, &parsed_sgx_spec));
-
-    ASSERT_THAT(generated_sgx_spec, EquivalentProto(parsed_sgx_spec))
-        << FormatProto(parsed_sgx_spec) << FormatProto(generated_sgx_spec);
+    ASSERT_THAT(ParseSgxMatchSpec(generic_match_spec, &parsed_sgx_spec),
+                IsOk());
+    ASSERT_THAT(generated_sgx_spec, EquivalentProto(parsed_sgx_spec));
   }
 }
 
@@ -821,7 +804,7 @@ TEST_F(CodeIdentityUtilTest, ParseSgxMatchSpecFailure) {
   CodeIdentityMatchSpec parsed_sgx_spec;
 
   for (int i = 0; i < 10000; i++) {
-    ASYLO_ASSERT_OK(SetRandomInvalidGenericMatchSpec(&generic_match_spec));
+    ASSERT_THAT(SetRandomInvalidGenericMatchSpec(&generic_match_spec), IsOk());
     ASSERT_THAT(ParseSgxMatchSpec(generic_match_spec, &parsed_sgx_spec),
                 Not(IsOk()));
   }
@@ -835,15 +818,15 @@ TEST_F(CodeIdentityUtilTest, ParseSgxExpectationSuccess) {
     EnclaveIdentityExpectation generic_expectation;
     CodeIdentityExpectation generated_sgx_expectation;
 
-    ASYLO_ASSERT_OK(SetRandomValidGenericExpectation(
-        &generic_expectation, &generated_sgx_expectation));
+    ASSERT_THAT(SetRandomValidGenericExpectation(&generic_expectation,
+                                                 &generated_sgx_expectation),
+                IsOk());
     CodeIdentityExpectation parsed_sgx_expectation;
-    ASYLO_ASSERT_OK(
-        ParseSgxExpectation(generic_expectation, &parsed_sgx_expectation));
+    ASSERT_THAT(
+        ParseSgxExpectation(generic_expectation, &parsed_sgx_expectation),
+        IsOk());
     ASSERT_THAT(generated_sgx_expectation,
-                EquivalentProto(parsed_sgx_expectation))
-        << FormatProto(generated_sgx_expectation)
-        << FormatProto(parsed_sgx_expectation);
+                EquivalentProto(parsed_sgx_expectation));
   }
 }
 
@@ -851,7 +834,8 @@ TEST_F(CodeIdentityUtilTest, ParseSgxExpectationFailure) {
   for (int i = 0; i < 10000; i++) {
     EnclaveIdentityExpectation generic_expectation;
 
-    ASYLO_ASSERT_OK(SetRandomInvalidGenericExpectation(&generic_expectation));
+    ASSERT_THAT(SetRandomInvalidGenericExpectation(&generic_expectation),
+                IsOk());
     CodeIdentityExpectation parsed_sgx_expectation;
     ASSERT_THAT(
         ParseSgxExpectation(generic_expectation, &parsed_sgx_expectation),
@@ -866,13 +850,11 @@ TEST_F(CodeIdentityUtilTest, SerializeAndParseSgxIdentityEndToEnd) {
   EXPECT_THAT(SerializeSgxIdentity(generated_sgx_identity, &generic_identity),
               Not(IsOk()));
   generated_sgx_identity = GetRandomValidCodeIdentity();
-  ASYLO_EXPECT_OK(
-      SerializeSgxIdentity(generated_sgx_identity, &generic_identity));
+  EXPECT_THAT(SerializeSgxIdentity(generated_sgx_identity, &generic_identity),
+              IsOk());
   CodeIdentity parsed_sgx_identity;
-  ASYLO_ASSERT_OK(ParseSgxIdentity(generic_identity, &parsed_sgx_identity));
-  ASSERT_THAT(generated_sgx_identity, EquivalentProto(parsed_sgx_identity))
-      << FormatProto(generated_sgx_identity)
-      << FormatProto(parsed_sgx_identity);
+  ASSERT_THAT(ParseSgxIdentity(generic_identity, &parsed_sgx_identity), IsOk());
+  ASSERT_THAT(generated_sgx_identity, EquivalentProto(parsed_sgx_identity));
 }
 
 TEST_F(CodeIdentityUtilTest, SerializeAndParseSgxMatchSpecEndToEnd) {
@@ -882,11 +864,10 @@ TEST_F(CodeIdentityUtilTest, SerializeAndParseSgxMatchSpecEndToEnd) {
   EXPECT_THAT(SerializeSgxMatchSpec(generated_sgx_spec, &generic_spec),
               Not(IsOk()));
   generated_sgx_spec = GetRandomValidMatchSpec();
-  ASYLO_EXPECT_OK(SerializeSgxMatchSpec(generated_sgx_spec, &generic_spec));
+  EXPECT_THAT(SerializeSgxMatchSpec(generated_sgx_spec, &generic_spec), IsOk());
   CodeIdentityMatchSpec parsed_sgx_spec;
-  ASYLO_ASSERT_OK(ParseSgxMatchSpec(generic_spec, &parsed_sgx_spec));
-  ASSERT_THAT(generated_sgx_spec, EquivalentProto(parsed_sgx_spec))
-      << FormatProto(generated_sgx_spec) << FormatProto(parsed_sgx_spec);
+  ASSERT_THAT(ParseSgxMatchSpec(generic_spec, &parsed_sgx_spec), IsOk());
+  ASSERT_THAT(generated_sgx_spec, EquivalentProto(parsed_sgx_spec));
 }
 
 TEST_F(CodeIdentityUtilTest, SerializeAndParseSgxExpectationEndToEnd) {
@@ -897,18 +878,17 @@ TEST_F(CodeIdentityUtilTest, SerializeAndParseSgxExpectationEndToEnd) {
       SerializeSgxExpectation(generated_sgx_expectation, &generic_expectation),
       Not(IsOk()));
   generated_sgx_expectation = GetRandomValidExpectation();
-  ASYLO_EXPECT_OK(
-      SerializeSgxExpectation(generated_sgx_expectation, &generic_expectation));
+  EXPECT_THAT(
+      SerializeSgxExpectation(generated_sgx_expectation, &generic_expectation),
+      IsOk());
   CodeIdentityExpectation parsed_sgx_expectation;
-  ASYLO_ASSERT_OK(
-      ParseSgxExpectation(generic_expectation, &parsed_sgx_expectation));
+  ASSERT_THAT(ParseSgxExpectation(generic_expectation, &parsed_sgx_expectation),
+              IsOk());
   ASSERT_THAT(generated_sgx_expectation,
-              EquivalentProto(parsed_sgx_expectation))
-      << FormatProto(generated_sgx_expectation)
-      << FormatProto(parsed_sgx_expectation);
+              EquivalentProto(parsed_sgx_expectation));
 }
 
-TEST_F(CodeIdentityUtilTest, SetTargetinfoFromSelfIdentity) {
+TEST_F(CodeIdentityUtilTest, SetTargetinforFromSelfIdentity) {
   AlignedTargetinfoPtr tinfo;
   SetTargetinfoFromSelfIdentity(tinfo.get());
 
@@ -929,8 +909,8 @@ TEST_F(CodeIdentityUtilTest, VerifyHardwareReportPositive) {
   AlignedReportPtr report;
   AlignedReportdataPtr data;
   *data = TrivialRandomObject<Reportdata>();
-  ASYLO_ASSERT_OK(GetHardwareReport(*tinfo, *data, report.get()));
-  ASYLO_EXPECT_OK(VerifyHardwareReport(*report));
+  ASSERT_TRUE(GetHardwareReport(*tinfo, *data, report.get()));
+  EXPECT_THAT(VerifyHardwareReport(*report), IsOk());
 }
 
 TEST_F(CodeIdentityUtilTest, VerifyHardwareReportWrongTarget) {
@@ -942,7 +922,7 @@ TEST_F(CodeIdentityUtilTest, VerifyHardwareReportWrongTarget) {
   // Verify that corrupting MEASUREMENT results in an unverifiable report.
   SetTargetinfoFromSelfIdentity(tinfo.get());
   tinfo->measurement[0] ^= 0xFFFF;
-  ASYLO_ASSERT_OK(GetHardwareReport(*tinfo, *data, report.get()));
+  ASSERT_TRUE(GetHardwareReport(*tinfo, *data, report.get()));
   EXPECT_THAT(VerifyHardwareReport(*report), Not(IsOk()));
 }
 
@@ -953,7 +933,7 @@ TEST_F(CodeIdentityUtilTest, VerifyHardwareReportBadReport) {
   AlignedReportPtr report;
   AlignedReportdataPtr data;
   *data = TrivialRandomObject<Reportdata>();
-  ASYLO_ASSERT_OK(GetHardwareReport(*tinfo, *data, report.get()));
+  ASSERT_TRUE(GetHardwareReport(*tinfo, *data, report.get()));
   // Corrupt the REPORT by flipping the first byte of MRENCLAVE.
   report->mrenclave[0] ^= 0xFFFF;
   EXPECT_THAT(VerifyHardwareReport(*report), Not(IsOk()));

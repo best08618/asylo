@@ -32,7 +32,6 @@
 #include "absl/time/time.h"
 #include "absl/types/variant.h"
 #include "asylo/enclave.pb.h"  // IWYU pragma: export
-#include "asylo/platform/arch/fork.pb.h"
 #include "asylo/platform/core/enclave_client.h"
 #include "asylo/platform/core/enclave_config_util.h"
 #include "asylo/platform/core/shared_resource_manager.h"
@@ -62,8 +61,7 @@ class EnclaveManagerOptions {
   /// The ConfigServerConnectionAttributes struct holds information necessary
   /// for contacting the config server running inside the Asylo daemon.
   struct ConfigServerConnectionAttributes {
-    ConfigServerConnectionAttributes(std::string address,
-                                     absl::Duration timeout)
+    ConfigServerConnectionAttributes(std::string address, absl::Duration timeout)
         : server_address(std::move(address)),
           connection_timeout(std::move(timeout)) {}
 
@@ -180,12 +178,8 @@ class EnclaveManager {
   ///
   /// \param name Name to bind the loaded enclave under.
   /// \param loader Configured enclave loader to load from.
-  /// \param base_address Start address to load enclave(optional).
-  /// \param enclave_size The size of the enclave in memory(only needed if
-  /// |base_address| is specified).
   Status LoadEnclave(const std::string &name, const EnclaveLoader &loader,
-                     void *base_address = nullptr,
-                     const size_t enclave_size = 0);
+                     void *base_address = nullptr);
 
   /// Loads an enclave.
   ///
@@ -206,12 +200,8 @@ class EnclaveManager {
   /// \param name Name to bind the loaded enclave under.
   /// \param loader Configured enclave loader to load from.
   /// \param config Enclave configuration to launch the enclave with.
-  /// \param base_address Start address to load enclave(optional).
-  /// \param enclave_size The size of the enclave in memory(only needed if
-  /// |base_address| is specified).
   Status LoadEnclave(const std::string &name, const EnclaveLoader &loader,
-                     EnclaveConfig config, void *base_address = nullptr,
-                     const size_t enclave_size = 0);
+                     EnclaveConfig config, void *base_address = nullptr);
 
   /// Fetches a client to a loaded enclave.
   ///
@@ -219,8 +209,7 @@ class EnclaveManager {
   ///             EnclaveManager.
   /// \return A mutable pointer to the EnclaveClient if the name is
   ///         registered. Otherwise returns nullptr.
-  EnclaveClient *GetClient(const std::string &name) const
-      LOCKS_EXCLUDED(client_table_lock_);
+  EnclaveClient *GetClient(const std::string &name) const;
 
   /// Returns the name of an enclave client.
   ///
@@ -228,8 +217,7 @@ class EnclaveManager {
   ///               EnclaveManager.
   /// \return The name of an enclave client. If no enclave matches `client` the
   ///         empty string will be returned.
-  const std::string GetName(const EnclaveClient *client) const
-      LOCKS_EXCLUDED(client_table_lock_);
+  const std::string GetName(const EnclaveClient *client) const;
 
   /// Destroys an enclave.
   ///
@@ -244,8 +232,7 @@ class EnclaveManager {
   /// \param skip_finalize If true, the enclave is destroyed without invoking
   ///                      its Finalize method.
   Status DestroyEnclave(EnclaveClient *client, const EnclaveFinal &final_input,
-                        bool skip_finalize = false)
-      LOCKS_EXCLUDED(client_table_lock_);
+                        bool skip_finalize = false);
 
   /// Enters an enclave and takes a snapshot of its memory. This method calls
   /// `client's` EnterAndTakeSnapshot entry point, with snapshot layout (in
@@ -267,16 +254,6 @@ class EnclaveManager {
   Status EnterAndRestore(EnclaveClient *client,
                          const SnapshotLayout &snapshot_layout);
 
-  /// Enters an enclave and securely transfers snapshot key with another
-  /// enclave. This method calls `client's` EnterAndTransferSecureSnapshotKey
-  /// entry_point.
-  ///
-  /// \param client A client attached to the enclave to enter.
-  /// \param fork_handshake_config The input specifies the socket and type of
-  ///                              enclave(parent/child).
-  Status EnterAndTransferSecureSnapshotKey(
-      EnclaveClient *client, const ForkHandshakeConfig &fork_handshake_config);
-
   /// Fetches the shared resource manager object.
   ///
   /// \return The SharedResourceManager instance.
@@ -293,8 +270,7 @@ class EnclaveManager {
 
   /// Get the loader of an enclave. This should only be used during fork in
   /// order to load an enclave with the same loader as the parent.
-  EnclaveLoader *GetLoaderFromClient(EnclaveClient *client)
-      LOCKS_EXCLUDED(client_table_lock_);
+  EnclaveLoader *GetLoaderFromClient(EnclaveClient *client);
 
  private:
   EnclaveManager() EXCLUSIVE_LOCKS_REQUIRED(mu_);
@@ -309,17 +285,13 @@ class EnclaveManager {
   // Loads a new enclave with custom enclave config settings and binds it to a
   // name. The actual work of opening the enclave is delegated to the passed
   // loader object.
-  Status LoadEnclaveInternal(const std::string &name,
-                             const EnclaveLoader &loader,
+  Status LoadEnclaveInternal(const std::string &name, const EnclaveLoader &loader,
                              const EnclaveConfig &config,
-                             void *base_address = nullptr,
-                             const size_t enclave_size = 0)
-      LOCKS_EXCLUDED(client_table_lock_);
+                             void *base_address = nullptr);
 
   // Deletes an enclave client reference that points to an enclave that no
   // longer exists. This should only happen during fork.
-  void RemoveEnclaveReference(const std::string &name)
-      LOCKS_EXCLUDED(client_table_lock_);
+  void RemoveEnclaveReference(const std::string &name);
 
   // Create a thread to periodically update logic.
   void SpawnWorkerThread();
@@ -339,17 +311,11 @@ class EnclaveManager {
   // Value synchronized to CLOCK_REALTIME by the worker loop.
   std::atomic<int64_t> clock_realtime_;
 
-  // A mutex guarding |client_by_name_|, |name_by_client_|, and
-  // |loader_by_client_| tables.
-  mutable absl::Mutex client_table_lock_;
-
-  absl::flat_hash_map<std::string, std::unique_ptr<EnclaveClient>>
-      client_by_name_ GUARDED_BY(client_table_lock_);
-  absl::flat_hash_map<const EnclaveClient *, std::string> name_by_client_
-      GUARDED_BY(client_table_lock_);
+  absl::flat_hash_map<std::string, std::unique_ptr<EnclaveClient>> client_by_name_;
+  absl::flat_hash_map<const EnclaveClient *, std::string> name_by_client_;
 
   absl::flat_hash_map<const EnclaveClient *, std::unique_ptr<EnclaveLoader>>
-      loader_by_client_ GUARDED_BY(client_table_lock_);
+      loader_by_client_;
 
   // A part of the configuration for enclaves launched by the enclave manager
   // comes from the Asylo daemon. This member caches such configuration.
@@ -386,14 +352,13 @@ class EnclaveLoader {
   virtual StatusOr<std::unique_ptr<EnclaveClient>> LoadEnclave(
       const std::string &name) const {
     EnclaveConfig config;
-    return LoadEnclave(name, /*base_address=*/nullptr, /*enclave_size=*/0,
-                       config);
+    return LoadEnclave(name, nullptr, config);
   }
 
   // Loads an enclave at the specified address, returning a pointer to a client
   // on success and a non-ok status on failure.
   virtual StatusOr<std::unique_ptr<EnclaveClient>> LoadEnclave(
-      const std::string &name, void *base_address, const size_t enclave_size,
+      const std::string &name, void *base_address,
       const EnclaveConfig &config) const = 0;
 
   // Gets a copy of the loader that loaded a previous enclave. This is only used

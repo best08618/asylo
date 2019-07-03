@@ -4420,7 +4420,7 @@ diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/configure.in ./libgloss/enc
 diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/enclave.c ./libgloss/enclave/enclave.c
 --- ../newlib-2.5.0.20170922/libgloss/enclave/enclave.c
 +++ ./libgloss/enclave/enclave.c
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,100 @@
 +#include <grp.h>
 +#include <stdint.h>
 +#include <sys/time.h>
@@ -4482,11 +4482,6 @@ diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/enclave.c ./libgloss/enclav
 +  return enclave_lseek(file, ptr, dir);
 +}
 +
-+int _mkdir(const char *pathname, int mode)
-+{
-+  return enclave_mkdir(pathname, mode);
-+}
-+
 +int _open(char *file, int flags, int mode)
 +{
 +  return enclave_open(file, flags, mode);
@@ -4544,7 +4539,7 @@ diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/enclave.specs ./libgloss/en
 diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/enclave_syscalls.h ./libgloss/enclave/enclave_syscalls.h
 --- ../newlib-2.5.0.20170922/libgloss/enclave/enclave_syscalls.h
 +++ ./libgloss/enclave/enclave_syscalls.h
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,38 @@
 +#ifndef THIRD_PARTY_LINUX_SGX_BSP_CALLTABLE_H_
 +#define THIRD_PARTY_LINUX_SGX_BSP_CALLTABLE_H_
 +
@@ -4552,7 +4547,6 @@ diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/enclave_syscalls.h ./libglo
 +#include <sys/stat.h>
 +#include <sys/time.h>
 +#include <sys/times.h>
-+#include <sys/types.h>
 +
 +#if defined(__cplusplus)
 +extern "C" {
@@ -4570,7 +4564,6 @@ diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/enclave_syscalls.h ./libglo
 +int enclave_kill(int pid, int sig);
 +int enclave_link(char *existing, char *new_link);
 +int enclave_lseek(int file, int ptr, int dir);
-+int enclave_mkdir(const char *pathname, mode_t mode);
 +int enclave_open(char *file, int flags, int mode);
 +int enclave_read(int file, char *ptr, int len);
 +void *enclave_sbrk(int incr);
@@ -4777,7 +4770,7 @@ diff -Naur ../newlib-2.5.0.20170922/libgloss/enclave/warning.h ./libgloss/enclav
 diff -Naur ../newlib-2.5.0.20170922/newlib/configure.host ./newlib/configure.host
 --- ../newlib-2.5.0.20170922/newlib/configure.host
 +++ ./newlib/configure.host
-@@ -851,6 +851,19 @@
+@@ -851,6 +851,18 @@
  	syscall_dir=syscalls	
  	newlib_cflags="${newlib_cflags} -DSMALL_DTOA -DSMALL_MEMORY"
  	;;
@@ -4792,27 +4785,10 @@ diff -Naur ../newlib-2.5.0.20170922/newlib/configure.host ./newlib/configure.hos
 +	newlib_cflags="${newlib_cflags} -Wall"
 +	newlib_cflags="${newlib_cflags} -D_NO_POSIX_SPAWN"
 +	newlib_cflags="${newlib_cflags} -DHAVE_FCNTL"
-+	newlib_cflags="${newlib_cflags} -DHAVE_MKDIR"
 +	;;
    xc16x-*)
            syscall_dir=syscalls
          ;;
-diff -Naur ../newlib-2.5.0.20170922/newlib/libc/include/malloc.h ./newlib/libc/include/malloc.h
---- ../newlib-2.5.0.20170922/newlib/libc/include/malloc.h
-+++ ./newlib/libc/include/malloc.h
-@@ -50,6 +50,12 @@
- extern _VOID _free_r _PARAMS ((struct _reent *, _PTR));
- #endif
- 
-+#ifdef __ASYLO__
-+extern _VOID set_malloc_hook _PARAMS((_PTR(*)(size_t, _PTR), _PTR));
-+extern _VOID set_realloc_hook _PARAMS((_PTR(*)(_PTR, size_t, _PTR), _PTR));
-+extern _VOID set_free_hook _PARAMS((_VOID(*)(_PTR, _PTR), _PTR));
-+#endif  // __ASYLO__
-+
- extern _PTR realloc _PARAMS ((_PTR, size_t));
- #ifdef __CYGWIN__
- #undef _realloc_r
 diff -Naur ../newlib-2.5.0.20170922/newlib/libc/include/pthread.h ./newlib/libc/include/pthread.h
 --- ../newlib-2.5.0.20170922/newlib/libc/include/pthread.h
 +++ ./newlib/libc/include/pthread.h
@@ -5010,65 +4986,6 @@ diff -Naur ../newlib-2.5.0.20170922/newlib/libc/posix/opendir.c ./newlib/libc/po
  #ifdef HAVE_FCNTL
  	rc = fcntl(fd, F_SETFD, 1);
  #endif
-diff -Naur ../newlib-2.5.0.20170922/newlib/libc/stdlib/malloc.c ./newlib/libc/stdlib/malloc.c
---- ../newlib-2.5.0.20170922/newlib/libc/stdlib/malloc.c
-+++ ./newlib/libc/stdlib/malloc.c
-@@ -208,10 +208,41 @@
- 
- #ifndef _REENT_ONLY
- 
-+#ifdef __ASYLO__
-+static void* (*malloc_hook)(size_t, void*) = NULL;
-+static void* malloc_pool = NULL;
-+static void (*free_hook)(void*, void*) = NULL;
-+static void* free_pool = NULL;
-+
-+void
-+_DEFUN (set_malloc_hook, (custom_malloc, pool),
-+        void* (*custom_malloc)(size_t, void*) _AND
-+        void* pool)
-+{
-+  malloc_hook = custom_malloc;
-+  malloc_pool = pool;
-+}
-+
-+void
-+_DEFUN (set_free_hook, (custom_free, pool),
-+        void (*custom_free)(void*, void*) _AND
-+        void *pool)
-+{
-+  free_hook = custom_free;
-+  free_pool = pool;
-+}
-+#endif  // __ASYLO__
-+
- _PTR
- _DEFUN (malloc, (nbytes),
- 	size_t nbytes)		/* get a block */
- {
-+#ifdef __ASYLO__
-+  if (malloc_hook)
-+  {
-+    return malloc_hook(nbytes, malloc_pool);
-+  }
-+#endif  // __ASYLO__
-   return _malloc_r (_REENT, nbytes);
- }
- 
-@@ -219,6 +250,13 @@
- _DEFUN (free, (aptr),
- 	_PTR aptr)
- {
-+#ifdef __ASYLO__
-+  if (free_hook)
-+  {
-+    free_hook(aptr, free_pool);
-+    return;
-+  }
-+#endif  // __ASYLO__
-   _free_r (_REENT, aptr);
- }
- 
 diff -Naur ../newlib-2.5.0.20170922/newlib/libc/stdlib/mprec.c ./newlib/libc/stdlib/mprec.c
 --- ../newlib-2.5.0.20170922/newlib/libc/stdlib/mprec.c
 +++ ./newlib/libc/stdlib/mprec.c
@@ -5086,41 +5003,6 @@ diff -Naur ../newlib-2.5.0.20170922/newlib/libc/stdlib/mprec.c ./newlib/libc/std
  	return 0;
  }
 -
-diff -Naur ../newlib-2.5.0.20170922/newlib/libc/stdlib/realloc.c ./newlib/libc/stdlib/realloc.c
---- ../newlib-2.5.0.20170922/newlib/libc/stdlib/realloc.c
-+++ ./newlib/libc/stdlib/realloc.c
-@@ -10,11 +10,31 @@
- 
- #ifndef _REENT_ONLY
- 
-+#ifdef __ASYLO__
-+static void* (*realloc_hook)(void*, size_t, void*) = NULL;
-+static void* realloc_pool = NULL;
-+
-+void
-+_DEFUN (set_realloc_hook, (custom_realloc, pool),
-+        void* (*custom_realloc)(void*, size_t, void*) _AND
-+        void* pool)
-+{
-+  realloc_hook = custom_realloc;
-+  realloc_pool = pool;
-+}
-+#endif  // __ASYLO__
-+
- _PTR
- _DEFUN (realloc, (ap, nbytes),
- 	_PTR ap _AND
- 	size_t nbytes)
- {
-+#ifdef __ASYLO__
-+  if (realloc_hook)
-+  {
-+    return realloc_hook(ap, nbytes, realloc_pool);
-+  }
-+#endif  // __ASYLO__
-   return _realloc_r (_REENT, ap, nbytes);
- }
- 
 diff -Naur ../newlib-2.5.0.20170922/newlib/libc/stdlib/strtoimax.c ./newlib/libc/stdlib/strtoimax.c
 --- ../newlib-2.5.0.20170922/newlib/libc/stdlib/strtoimax.c
 +++ ./newlib/libc/stdlib/strtoimax.c
@@ -9973,21 +9855,6 @@ diff -Naur ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/features.h .
 +# include <sys/features.h>
 +
 +#endif  // _FEATURES_H
-diff -Naur ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/limits.h ./newlib/libc/sys/enclave/include/limits.h
---- ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/limits.h
-+++ ./newlib/libc/sys/enclave/include/limits.h
-@@ -0,0 +1,11 @@
-+#ifndef _LIMITS_H_
-+#define _LIMITS_H_
-+
-+// Be sure to include gcc's limits.h if we haven't already.
-+#if defined(__GNUC__) && !defined(_GCC_LIMITS_H_)
-+#include_next <limits.h>
-+#endif
-+
-+#include <sys/syslimits.h>
-+
-+#endif  // _LIMITS_H_
 diff -Naur ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/machine/_types.h ./newlib/libc/sys/enclave/include/machine/_types.h
 --- ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/machine/_types.h
 +++ ./newlib/libc/sys/enclave/include/machine/_types.h
@@ -10169,17 +10036,6 @@ diff -Naur ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/sys/_pthread
 +typedef struct { unsigned char _dummy; } pthread_rwlockattr_t;
 +
 +#endif  // _SYS__PTHREADTYPES_H
-diff -Naur ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/sys/syslimits.h ./newlib/libc/sys/enclave/include/sys/syslimits.h
---- ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/include/sys/syslimits.h
-+++ ./newlib/libc/sys/enclave/include/sys/syslimits.h
-@@ -0,0 +1,7 @@
-+#ifndef _SYS_SYSLIMITS_H_
-+#define _SYS_SYSLIMITS_H_
-+
-+#define PATH_MAX 4096
-+#define PIPE_BUF 4096
-+
-+#endif  // _SYS_SYSLIMITS_H_
 diff -Naur ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/Makefile.am ./newlib/libc/sys/enclave/Makefile.am
 --- ../newlib-2.5.0.20170922/newlib/libc/sys/enclave/Makefile.am
 +++ ./newlib/libc/sys/enclave/Makefile.am

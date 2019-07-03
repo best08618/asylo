@@ -26,20 +26,19 @@
 #include "asylo/test/util/status_matchers.h"
 
 namespace asylo {
+namespace grpc_auth {
 namespace {
 
 using ::testing::Not;
 
-// Verify that InitializeEnclaveAssertionAuthorities succeeds with a set of
-// empty configs.
-TEST(InitTest, InitializeSucceedsWithEmptyConfigs) {
+// Verify that InitializeEnclaveAssertionAuthorities succeeds with no input.
+TEST(InitTest, InitializeSucceedsWithoutConfigs) {
   std::vector<EnclaveAssertionAuthorityConfig> configs;
 
   EXPECT_THAT(
       InitializeEnclaveAssertionAuthorities(configs.begin(), configs.end()),
       IsOk());
 }
-
 
 // Verify that InitializeEnclaveAssertionAuthorities succeeds when provided with
 // valid configs.
@@ -94,4 +93,5 @@ TEST(InitTest, InitializeFailsWithNonMatchingConfigs) {
 }
 
 }  // namespace
+}  // namespace grpc_auth
 }  // namespace asylo

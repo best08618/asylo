@@ -14,12 +14,12 @@
 # limitations under the License.
 #
 
-load("//asylo/bazel:asylo.bzl", "cc_enclave_test", "ASYLO_ALL_BACKENDS")
-load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
-
 licenses(["notice"])  # Apache v2.0
 
 # Secure IO library for enclave.
+
+load("//asylo/bazel:asylo.bzl", "cc_enclave_test")
+load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 
 package(
     default_visibility = ["//asylo:implementation"],
@@ -47,7 +47,6 @@ cc_library(
         "ctmmt_authenticated_dictionary.h",
     ],
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         "@com_google_absl//absl/memory",
         "@com_google_certificate_transparency//:merkletree",
@@ -59,7 +58,6 @@ cc_library(
     srcs = ["aead_handler.cc"],
     hdrs = ["aead_handler.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         ":authenticated_dictionary",
         "//asylo/crypto/util:byte_container_view",
@@ -80,13 +78,10 @@ cc_library(
     srcs = ["enclave_storage_secure.cc"],
     hdrs = ["enclave_storage_secure.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         ":aead_handler",
         "//asylo/platform/arch:trusted_arch",
-        "//asylo/platform/storage/utils:fd_closer",
         "//asylo/platform/storage/utils:offset_translator",
-        "//asylo/util:logging",
     ],
 )
 
@@ -99,8 +94,6 @@ cc_enclave_test(
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_flags",
         "//asylo/util:cleansing_types",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )

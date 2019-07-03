@@ -33,10 +33,10 @@ class QueueOperations {
   // // Constructs a QueueOperations instance from a non-owning pointer to a
   // generic Queue object.
   template <class QueueType>
-  explicit QueueOperations(QueueType *queue)
+  explicit QueueOperations(QueueType* queue)
       : QueueOperations(&queue->_queue) {}
 
-  explicit QueueOperations(__pthread_list_t *list);
+  explicit QueueOperations(__pthread_list_t* list);
 
   // Removes the first thread_id in the list.
   void Dequeue();
@@ -60,8 +60,20 @@ class QueueOperations {
   // Returns true if the id is in the list.
   bool Empty() const;
 
+ protected:
+  // This constructor should only be used for testing. Use one of the above
+  // constructors which takes a pthread_* type. The QueueOperations does not
+  // take ownership of |list|.
+  QueueOperations(__pthread_list_t* list,
+                  const std::function<void()>& abort_func);
+
  private:
-  __pthread_list_t *const list_;
+  __pthread_list_t* const list_;
+
+  // Only stored for injection during testing. In production use this should be
+  // abort().
+  //
+  std::function<void()> abort_func_;
 };
 
 // Provides an RAII wrapper around pthread_mutex_t. Aborts on errors, so should
@@ -70,7 +82,7 @@ class QueueOperations {
 // so that we don't abort internally due to application error.
 class PthreadMutexLock {
  public:
-  PthreadMutexLock(pthread_mutex_t *mutex) : mutex_(mutex) {
+  PthreadMutexLock(pthread_mutex_t* mutex) : mutex_(mutex) {
     int ret = pthread_mutex_lock(mutex_);
     CHECK_EQ(ret, 0);
   }
@@ -81,7 +93,7 @@ class PthreadMutexLock {
   }
 
  private:
-  pthread_mutex_t *const mutex_;
+  pthread_mutex_t* const mutex_;
 };
 
 }  // namespace pthread_impl

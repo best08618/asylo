@@ -14,20 +14,20 @@
 # limitations under the License.
 #
 
+licenses(["notice"])  # Apache v2.0
+
 load(
     "//asylo/bazel:asylo.bzl",
     "cc_test",
-    "sgx_enclave_test",
+    "enclave_test",
 )
-load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
+load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
 load(
     "//asylo/bazel:proto.bzl",
     "asylo_grpc_proto_library",
     "asylo_proto_library",
 )
-load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
-
-licenses(["notice"])  # Apache v2.0
+load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 
 # Service definition for testing gRPC in Asylo.
 asylo_grpc_proto_library(
@@ -39,7 +39,6 @@ asylo_grpc_proto_library(
 asylo_proto_library(
     name = "client_enclave_proto",
     srcs = ["client_enclave.proto"],
-    visibility = ["//asylo:implementation"],
     deps = ["//asylo:enclave_proto"],
 )
 
@@ -69,6 +68,20 @@ cc_library(
         "//asylo/util:logging",
         "//asylo/util:status",
         "@com_github_grpc_grpc//:grpc++",
+    ],
+)
+
+# Base implementation for a simple gRPC server in an enclave.
+cc_library(
+    name = "enclave_server",
+    testonly = 1,
+    srcs = ["enclave_server.cc"],
+    hdrs = ["enclave_server.h"],
+    copts = ASYLO_DEFAULT_COPTS,
+    deps = [
+        ":messenger_server_impl",
+        "//asylo:enclave_runtime",
+        "//asylo/util:status",
     ],
 )
 
@@ -118,25 +131,21 @@ sgx_enclave(
         "//asylo/grpc/auth:sgx_local_credentials_options",
         "//asylo/grpc/util:enclave_server",
         "//asylo/identity:identity_proto_cc",
+        "//asylo/util:status",
     ],
 )
 
 sgx_enclave(
     name = "client_enclave.so",
     testonly = 1,
-    srcs = [
-        "client_enclave.cc",
-        "client_enclave.h",
-    ],
+    srcs = ["client_enclave.cc"],
     config = "//asylo/grpc/util:grpc_enclave_config",
     copts = ASYLO_DEFAULT_COPTS,
-    visibility = ["//asylo:implementation"],
     deps = [
         ":client_enclave_proto_cc",
         ":messenger_client_impl",
         "//asylo:enclave_runtime",
         "//asylo/grpc/auth:grpc++_security_enclave",
-        "//asylo/grpc/auth:null_credentials_options",
         "//asylo/grpc/auth:sgx_local_credentials_options",
         "//asylo/identity:identity_proto_cc",
         "//asylo/util:status",
@@ -146,7 +155,7 @@ sgx_enclave(
 )
 
 # Test for gRPC in Asylo.
-sgx_enclave_test(
+enclave_test(
     name = "enclave_insecure_server_test",
     srcs = ["enclave_insecure_server_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -170,7 +179,7 @@ sgx_enclave_test(
 )
 
 # Test for gRPC using enclave gRPC security.
-sgx_enclave_test(
+enclave_test(
     name = "enclave_secure_server_test",
     srcs = ["enclave_secure_server_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -183,8 +192,8 @@ sgx_enclave_test(
         "//asylo/grpc/auth:grpc++_security_enclave",
         "//asylo/grpc/auth:null_credentials_options",
         "//asylo/grpc/util:enclave_server_proto_cc",
+        "//asylo/identity:enclave_assertion_authority_config_proto_cc",
         "//asylo/identity:init",
-        "//asylo/test/util:enclave_assertion_authority_configs",
         "//asylo/test/util:enclave_test",
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_main",
@@ -211,7 +220,6 @@ cc_test(
         "//asylo/grpc/util:grpc_server_launcher",
         "//asylo/identity:enclave_assertion_authority_config_proto_cc",
         "//asylo/identity:init",
-        "//asylo/test/util:enclave_assertion_authority_configs",
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_main",
         "//asylo/util:logging",
@@ -222,7 +230,7 @@ cc_test(
 )
 
 # Test for gRPC communication between two enclaves.
-sgx_enclave_test(
+enclave_test(
     name = "enclave_communication_test",
     srcs = ["enclave_communication_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -239,7 +247,6 @@ sgx_enclave_test(
         ":messenger_server_impl",
         "//asylo:enclave_proto_cc",
         "//asylo/grpc/util:enclave_server_proto_cc",
-        "//asylo/test/util:enclave_assertion_authority_configs",
         "//asylo/test/util:enclave_test_launcher",
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_flags",

@@ -24,7 +24,6 @@
 #include <fcntl.h>
 
 #include <iomanip>
-#include <memory>
 
 #include "absl/strings/escaping.h"
 #include "absl/synchronization/mutex.h"
@@ -43,21 +42,21 @@ using crypto::gcmlib::GcmCryptorRegistry;
 namespace {
 
 // Perform a weak validation that the path is canonical.
-bool IsPathNameValid(const char *path_name) {
+bool IsPathNameValid(const char* path_name) {
   return path_name && strlen(path_name) && path_name[0] == '/';
 }
 
 bool is_transient_error(int err) { return (err == EAGAIN) || (err == EINTR); }
 
 // Returns -1 on failure, or min(|len|, bytes to EOF) on success.
-ssize_t read_all(int fd, void *buf, size_t len) {
+ssize_t read_all(int fd, void* buf, size_t len) {
   size_t bytes_to_read = len;
   size_t offset = 0;
 
   while (bytes_to_read > 0) {
     ssize_t bytes_read;
     do {
-      bytes_read = enc_untrusted_read(fd, static_cast<uint8_t *>(buf) + offset,
+      bytes_read = enc_untrusted_read(fd, static_cast<uint8_t*>(buf) + offset,
                                       bytes_to_read);
     } while ((bytes_read == -1) && is_transient_error(errno));
     if (bytes_read == -1) {
@@ -75,7 +74,7 @@ ssize_t read_all(int fd, void *buf, size_t len) {
 }
 
 // Returns -1 on failure, or |len| on success.
-ssize_t write_all(int fd, const void *buf, size_t len) {
+ssize_t write_all(int fd, const void* buf, size_t len) {
   size_t bytes_to_write = len;
   size_t offset = 0;
 
@@ -83,7 +82,7 @@ ssize_t write_all(int fd, const void *buf, size_t len) {
     ssize_t bytes_written;
     do {
       bytes_written = enc_untrusted_write(
-          fd, static_cast<const uint8_t *>(buf) + offset, bytes_to_write);
+          fd, static_cast<const uint8_t*>(buf) + offset, bytes_to_write);
     } while ((bytes_written == -1) && is_transient_error(errno));
     if (bytes_written == -1) {
       return -1;
@@ -103,9 +102,9 @@ ssize_t write_all(int fd, const void *buf, size_t len) {
 
 // Returns offset to the plaintext buffer associated with the |block_index| of
 // a full block.
-const uint8_t *GetPlaintextBuffer(size_t first_partial_block_bytes_count,
-                                  int64_t block_index, const void *buf) {
-  const uint8_t *plaintext_data = reinterpret_cast<const uint8_t *>(buf);
+const uint8_t* GetPlaintextBuffer(size_t first_partial_block_bytes_count,
+                                  int64_t block_index, const void* buf) {
+  const uint8_t* plaintext_data = reinterpret_cast<const uint8_t*>(buf);
   if (first_partial_block_bytes_count > 0) {
     if (block_index > 0) {
       plaintext_data += first_partial_block_bytes_count;
@@ -120,11 +119,11 @@ const uint8_t *GetPlaintextBuffer(size_t first_partial_block_bytes_count,
   return plaintext_data;
 }
 
-uint8_t *GetPlaintextBuffer(size_t first_partial_block_bytes_count,
-                            int64_t block_index, void *buf) {
-  return const_cast<uint8_t *>(
+uint8_t* GetPlaintextBuffer(size_t first_partial_block_bytes_count,
+                            int64_t block_index, void* buf) {
+  return const_cast<uint8_t*>(
       GetPlaintextBuffer(first_partial_block_bytes_count, block_index,
-                         const_cast<const void *>(buf)));
+                         const_cast<const void*>(buf)));
 }
 
 }  // namespace
@@ -145,14 +144,13 @@ AeadHandler::AeadHandler()
     : offset_translator_(OffsetTranslator::Create(
           sizeof(FileHeader), kBlockLength, kSecureBlockLength)) {}
 
-bool AeadHandler::Deserialize(FileControl *file_ctrl) {
+bool AeadHandler::Deserialize(FileControl* file_ctrl) {
   if (!file_ctrl) {
     errno = EINVAL;
     return false;
   }
-  file_ctrl->mu.AssertHeld();
 
-  const GcmCryptor *cryptor = GetGcmCryptor(*file_ctrl);
+  const GcmCryptor* cryptor = GetGcmCryptor(*file_ctrl);
   if (!cryptor) {
     return false;
   }
@@ -210,7 +208,7 @@ bool AeadHandler::Deserialize(FileControl *file_ctrl) {
       return false;
     }
 
-    std::string tag_string(reinterpret_cast<char *>(tag.data()), kTagLength);
+    std::string tag_string(reinterpret_cast<char*>(tag.data()), kTagLength);
     VLOG(2) << "Adding auth tag as leaf to rebuild Merkle tree: "
             << absl::BytesToHexString(tag_string);
     file_ctrl->ad->AddLeaf(tag_string);
@@ -228,7 +226,7 @@ bool AeadHandler::Deserialize(FileControl *file_ctrl) {
   // Prepare file data digest.
   DataDigest data_digest;
   std::copy_n(
-      reinterpret_cast<const uint8_t *>(file_ctrl->ad->CurrentRoot().data()),
+      reinterpret_cast<const uint8_t*>(file_ctrl->ad->CurrentRoot().data()),
       kRootHashLength, data_digest.data());
   data_digest.file_size = file_header.file_size;
 
@@ -252,7 +250,7 @@ bool AeadHandler::Deserialize(FileControl *file_ctrl) {
   return true;
 }
 
-bool AeadHandler::InitializeFile(int fd, const char *path_name,
+bool AeadHandler::InitializeFile(int fd, const char* path_name,
                                  bool is_new_file) {
   if (!IsPathNameValid(path_name)) {
     LOG(ERROR) << "Invalid input when initializing file, path_name="
@@ -285,7 +283,7 @@ bool AeadHandler::InitializeFile(int fd, const char *path_name,
   return true;
 }
 
-bool AeadHandler::RetrieveLogicalOffset(int fd, off_t *logical_offset) const {
+bool AeadHandler::RetrieveLogicalOffset(int fd, off_t* logical_offset) const {
   if (fd < 0) {
     errno = EINVAL;
     return false;
@@ -306,14 +304,13 @@ bool AeadHandler::RetrieveLogicalOffset(int fd, off_t *logical_offset) const {
   return true;
 }
 
-GcmCryptor *AeadHandler::GetGcmCryptor(const FileControl &file_ctrl) const {
-  file_ctrl.mu.AssertHeld();
+GcmCryptor* AeadHandler::GetGcmCryptor(const FileControl& file_ctrl) const {
   if (!file_ctrl.master_key) {
     LOG(ERROR) << "Master key has not been set, path = " << file_ctrl.path;
     return nullptr;
   }
 
-  GcmCryptor *cryptor = GcmCryptorRegistry::GetInstance().GetGcmCryptor(
+  GcmCryptor* cryptor = GcmCryptorRegistry::GetInstance().GetGcmCryptor(
       kBlockLength, *file_ctrl.master_key);
   if (!cryptor) {
     LOG(ERROR) << "Unable to instantiate GCM cryptor.";
@@ -322,7 +319,7 @@ GcmCryptor *AeadHandler::GetGcmCryptor(const FileControl &file_ctrl) const {
   return cryptor;
 }
 
-ssize_t AeadHandler::DecryptAndVerify(int fd, void *buf, size_t count) {
+ssize_t AeadHandler::DecryptAndVerify(int fd, void* buf, size_t count) {
   if (!buf) {
     errno = EINVAL;
     return -1;
@@ -333,7 +330,8 @@ ssize_t AeadHandler::DecryptAndVerify(int fd, void *buf, size_t count) {
     return -1;
   }
 
-  std::shared_ptr<FileControl> file_ctrl;
+  FileControl* file_ctrl;
+  std::unique_ptr<absl::MutexLock> file_lock;
   {
     absl::MutexLock global_lock(&mu_);
 
@@ -344,17 +342,16 @@ ssize_t AeadHandler::DecryptAndVerify(int fd, void *buf, size_t count) {
       return -1;
     }
 
-    file_ctrl = entry->second;
+    file_ctrl = entry->second.get();
+    file_lock = absl::make_unique<absl::MutexLock>(&file_ctrl->mu);
   }
 
-  absl::MutexLock lock(&file_ctrl->mu);
   return DecryptAndVerifyInternal(fd, buf, count, *file_ctrl, logical_offset);
 }
 
-ssize_t AeadHandler::DecryptAndVerifyInternal(int fd, void *buf, size_t count,
-                                              const FileControl &file_ctrl,
+ssize_t AeadHandler::DecryptAndVerifyInternal(int fd, void* buf, size_t count,
+                                              const FileControl& file_ctrl,
                                               off_t logical_offset) const {
-  file_ctrl.mu.AssertHeld();
   if (count == 0) {
     return 0;
   }
@@ -437,7 +434,7 @@ ssize_t AeadHandler::DecryptAndVerifyInternal(int fd, void *buf, size_t count,
     return -1;
   }
 
-  GcmCryptor *cryptor = GetGcmCryptor(file_ctrl);
+  GcmCryptor* cryptor = GetGcmCryptor(file_ctrl);
   if (!cryptor) {
     return -1;
   }
@@ -451,7 +448,7 @@ ssize_t AeadHandler::DecryptAndVerifyInternal(int fd, void *buf, size_t count,
   for (int64_t block_index = 0; block_index < blocks_read; block_index++) {
     const size_t merkle_block_idx = first_block_index + block_index + 1;
 
-    uint8_t *plaintext_data =
+    uint8_t* plaintext_data =
         GetPlaintextBuffer(first_partial_block_bytes_count, block_index, buf);
 
     // Detect full blocks that belong to sparse regions in the file - no need to
@@ -467,28 +464,28 @@ ssize_t AeadHandler::DecryptAndVerifyInternal(int fd, void *buf, size_t count,
                               kCipherBlockLength);
     VLOG(2) << "Ciphertext read: "
             << absl::BytesToHexString(absl::string_view(
-                   reinterpret_cast<const char *>(ciphertext.data()),
+                   reinterpret_cast<const char*>(ciphertext.data()),
                    kCipherBlockLength));
 
     TagView tag(buffer.data() + block_index * kSecureBlockLength + kBlockLength,
                 kTagLength);
     VLOG(2) << "Auth tag read: "
             << absl::BytesToHexString(absl::string_view(
-                   reinterpret_cast<const char *>(tag.data()), kTagLength));
+                   reinterpret_cast<const char*>(tag.data()), kTagLength));
 
     TokenView token(
         buffer.data() + block_index * kSecureBlockLength + kCipherBlockLength,
         kTokenLength);
     VLOG(2) << "Token read: "
             << absl::BytesToHexString(absl::string_view(
-                   reinterpret_cast<const char *>(token.data()), kTokenLength));
+                   reinterpret_cast<const char*>(token.data()), kTokenLength));
 
     // Note: Verifying integrity tag will be replaced with integrity
     // verification against AD root if/when AD tree will be stored in a file
     // (i.e. if/when optimizing integrity assurance for large files).
     if (file_ctrl.ad->LeafHash(merkle_block_idx) !=
-        file_ctrl.ad->LeafHash(std::string(
-            reinterpret_cast<const char *>(tag.data()), kTagLength))) {
+        file_ctrl.ad->LeafHash(
+            std::string(reinterpret_cast<const char*>(tag.data()), kTagLength))) {
       LOG(ERROR) << "Integrity verification failed, fd = " << fd;
       return -1;
     }
@@ -496,7 +493,7 @@ ssize_t AeadHandler::DecryptAndVerifyInternal(int fd, void *buf, size_t count,
     // Bounce block for reading partial blocks at the ends of the full range.
     Block bounce_block;
     // Target for decryption - bounce block or the supplied buffer.
-    uint8_t *decrypt_target;
+    uint8_t* decrypt_target;
     // Determine the target depending on whether the read block is at the end of
     // the full range.
     if ((block_index == 0 && first_partial_block_bytes_count > 0) ||
@@ -536,13 +533,12 @@ ssize_t AeadHandler::DecryptAndVerifyInternal(int fd, void *buf, size_t count,
   return read_count;
 }
 
-bool AeadHandler::UpdateDigest(FileControl *file_ctrl,
-                               const GcmCryptor &cryptor) const {
+bool AeadHandler::UpdateDigest(FileControl* file_ctrl,
+                               const GcmCryptor& cryptor) const {
   if (!file_ctrl) {
     errno = EINVAL;
     return false;
   }
-  file_ctrl->mu.AssertHeld();
 
   int fd = enc_untrusted_open(file_ctrl->path.c_str(), O_WRONLY);
   if (fd == -1) {
@@ -562,7 +558,7 @@ bool AeadHandler::UpdateDigest(FileControl *file_ctrl,
 
   // Prepare file data digest.
   DataDigest data_digest;
-  std::copy_n(reinterpret_cast<const uint8_t *>(root.data()), kRootHashLength,
+  std::copy_n(reinterpret_cast<const uint8_t*>(root.data()), kRootHashLength,
               data_digest.data());
   data_digest.file_size = file_ctrl->logical_size;
 
@@ -592,9 +588,8 @@ bool AeadHandler::UpdateDigest(FileControl *file_ctrl,
   return true;
 }
 
-bool AeadHandler::ReadFullBlock(const FileControl &file_ctrl,
-                                off_t logical_offset, Block *block) const {
-  file_ctrl.mu.AssertHeld();
+bool AeadHandler::ReadFullBlock(const FileControl& file_ctrl,
+                                off_t logical_offset, Block* block) const {
   if (logical_offset < 0 || logical_offset % kBlockLength != 0) {
     errno = EINVAL;
     return false;
@@ -629,7 +624,7 @@ bool AeadHandler::ReadFullBlock(const FileControl &file_ctrl,
   return true;
 }
 
-ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
+ssize_t AeadHandler::EncryptAndPersist(int fd, const void* buf, size_t count) {
   if (!buf) {
     errno = EINVAL;
     return -1;
@@ -640,7 +635,8 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
     return -1;
   }
 
-  std::shared_ptr<FileControl> file_ctrl;
+  FileControl* file_ctrl;
+  std::unique_ptr<absl::MutexLock> file_lock;
   {
     absl::MutexLock global_lock(&mu_);
 
@@ -651,14 +647,13 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
       return -1;
     }
 
-    file_ctrl = entry->second;
+    file_ctrl = entry->second.get();
+    file_lock = absl::make_unique<absl::MutexLock>(&file_ctrl->mu);
   }
 
   if (count == 0) {
     return 0;
   }
-
-  absl::MutexLock lock(&file_ctrl->mu);
 
   // Determine data breakdown into logical blocks.
   size_t first_partial_block_bytes_count;
@@ -682,7 +677,7 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
     }
 
     std::copy_n(
-        reinterpret_cast<const uint8_t *>(buf), first_partial_block_bytes_count,
+        reinterpret_cast<const uint8_t*>(buf), first_partial_block_bytes_count,
         first_block.data() + kBlockLength - first_partial_block_bytes_count);
   }
 
@@ -698,7 +693,7 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
       return -1;
     }
 
-    std::copy_n(reinterpret_cast<const uint8_t *>(buf) + count -
+    std::copy_n(reinterpret_cast<const uint8_t*>(buf) + count -
                     last_partial_block_bytes_count,
                 last_partial_block_bytes_count, last_block.data());
   }
@@ -730,7 +725,7 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
     start_block_to_write = eof_block_index - blocks_to_eof;
   }
 
-  GcmCryptor *cryptor = GetGcmCryptor(*file_ctrl);
+  GcmCryptor* cryptor = GetGcmCryptor(*file_ctrl);
   if (!cryptor) {
     return -1;
   }
@@ -747,11 +742,11 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
   // Cycle through blocks.
   std::vector<Tag> tags;
   for (int64_t block_index = 0; block_index < blocks_to_write; block_index++) {
-    const uint8_t *plaintext_data =
+    const uint8_t* plaintext_data =
         GetPlaintextBuffer(first_partial_block_bytes_count, block_index, buf);
 
     // Source for encryption - bounce block or the supplied buffer.
-    const uint8_t *encrypt_source;
+    const uint8_t* encrypt_source;
     // Determine the source depending on whether the written block is at the end
     // of the full range.
     if (block_index == 0 && first_partial_block_bytes_count > 0) {
@@ -763,9 +758,9 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
       encrypt_source = plaintext_data;
     }
 
-    Ciphertext *ciphertext =
+    Ciphertext* ciphertext =
         Ciphertext::Place(&buffer, block_index * kSecureBlockLength);
-    Token *token = Token::Place(
+    Token* token = Token::Place(
         &buffer, block_index * kSecureBlockLength + kCipherBlockLength);
 
     // Encrypt the block.
@@ -776,18 +771,17 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
     }
     VLOG(2) << "Ciphertext generated: "
             << absl::BytesToHexString(absl::string_view(
-                   reinterpret_cast<const char *>(ciphertext->data()),
+                   reinterpret_cast<const char*>(ciphertext->data()),
                    kBlockLength));
     VLOG(2) << "Token generated: "
             << absl::BytesToHexString(absl::string_view(
-                   reinterpret_cast<const char *>(token->data()),
-                   kTokenLength));
+                   reinterpret_cast<const char*>(token->data()), kTokenLength));
 
     TagView tag(ciphertext->data() + kBlockLength, kTagLength);
     tags.push_back(tag);
     VLOG(2) << "Auth tag generated: "
             << absl::BytesToHexString(absl::string_view(
-                   reinterpret_cast<const char *>(tag.data()), kTagLength));
+                   reinterpret_cast<const char*>(tag.data()), kTagLength));
   }
 
   // Move cursor to the first full block to write.
@@ -830,8 +824,7 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
   }
 
   for (int64_t idx = 0; idx < tags.size(); idx++) {
-    std::string tag_string(reinterpret_cast<char *>(tags[idx].data()),
-                           kTagLength);
+    std::string tag_string(reinterpret_cast<char*>(tags[idx].data()), kTagLength);
     int64_t block_index = start_block_to_write + idx;
     if (block_index < eof_block_index) {
       VLOG(2) << "Updating auth tag on AD: "
@@ -846,7 +839,7 @@ ssize_t AeadHandler::EncryptAndPersist(int fd, const void *buf, size_t count) {
 
   file_ctrl->logical_size = logical_offset + count;
 
-  if (!UpdateDigest(file_ctrl.get(), *cryptor)) {
+  if (!UpdateDigest(file_ctrl, *cryptor)) {
     return -1;
   }
 
@@ -870,15 +863,17 @@ bool AeadHandler::FinalizeFile(int fd) {
     return false;
   }
 
-  // Do not need to wait until the file is no longer operated on - shared_ptr
-  // taken by the operator will keep file_ctrl alive and allow it to take and
-  // release the lock on its own schedule. Removal from the maps here will not
-  // impact that ability.
+  FileControl* file_ctrl = entry->second.get();
+  {
+    // Wait until the file is not operated on - once that is the case, it will
+    // remain the case throughout this function, as guaranteed by global_lock.
+    absl::MutexLock file_lock(&file_ctrl->mu);
+  }
 
   VLOG(2) << "Finalizing secure file, fd = " << fd
-          << ", pathname = " << entry->second->path;
-  opened_files_.erase(entry->second->path);
-  fmap_.erase(entry);
+          << ", pathname = " << file_ctrl->path;
+  opened_files_.erase(file_ctrl->path);
+  fmap_.erase(fd);
 
   return true;
 }
@@ -887,7 +882,7 @@ bool AeadHandler::FinalizeFile(int fd) {
 // files, and only if not set yet - arguably, such intelligence may need to
 // reside outside of AeadHandler on the side of the IOCTL client. If not done
 // correctly by the client, IO ops will simply fail, as intended.
-int AeadHandler::SetMasterKey(int fd, const uint8_t *key_data,
+int AeadHandler::SetMasterKey(int fd, const uint8_t* key_data,
                               uint32_t key_length) {
   if (!key_data || key_length != kKeyLength) {
     LOG(ERROR) << "Attempt made to set an invalid key.";
@@ -895,7 +890,8 @@ int AeadHandler::SetMasterKey(int fd, const uint8_t *key_data,
     return -1;
   }
 
-  std::shared_ptr<FileControl> file_ctrl;
+  FileControl* file_ctrl;
+  std::unique_ptr<absl::MutexLock> file_lock;
   {
     absl::MutexLock global_lock(&mu_);
 
@@ -906,10 +902,9 @@ int AeadHandler::SetMasterKey(int fd, const uint8_t *key_data,
       return -1;
     }
 
-    file_ctrl = entry->second;
+    file_ctrl = entry->second.get();
+    file_lock = absl::make_unique<absl::MutexLock>(&file_ctrl->mu);
   }
-
-  absl::MutexLock lock(&file_ctrl->mu);
 
   if (file_ctrl->is_deserialized) {
     if (memcmp(file_ctrl->master_key->data(), key_data, kKeyLength) != 0) {
@@ -923,7 +918,7 @@ int AeadHandler::SetMasterKey(int fd, const uint8_t *key_data,
 
   file_ctrl->master_key =
       absl::make_unique<GcmCryptorKey>(key_data, key_length);
-  if (!Deserialize(file_ctrl.get())) {
+  if (!Deserialize(file_ctrl)) {
     LOG(ERROR) << "Failed to deserialize integrity metadata for file, path="
                << file_ctrl->path;
     return -1;
@@ -933,7 +928,7 @@ int AeadHandler::SetMasterKey(int fd, const uint8_t *key_data,
   return 0;
 }
 
-const OffsetTranslator &AeadHandler::GetOffsetTranslator() const {
+const OffsetTranslator& AeadHandler::GetOffsetTranslator() const {
   return *offset_translator_;
 }
 

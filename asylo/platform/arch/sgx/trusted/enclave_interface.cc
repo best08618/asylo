@@ -21,7 +21,9 @@
 #include "include/sgx_thread.h"
 #include "include/sgx_trts.h"
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 // The SGX SDK function sgx_thread_self() returns nullptr during early
 // initialization. To return a non-zero, distinct value for each thread and
@@ -34,15 +36,15 @@ uint64_t enc_thread_self() {
   return reinterpret_cast<uint64_t>(&thread_identity);
 }
 
-bool enc_is_within_enclave(void const *address, size_t size) {
+bool enc_is_within_enclave(void const* address, size_t size) {
   return sgx_is_within_enclave(address, size) == 1;
 }
 
-bool enc_is_outside_enclave(void const *address, size_t size) {
+bool enc_is_outside_enclave(void const* address, size_t size) {
   return sgx_is_outside_enclave(address, size) == 1;
 }
 
-void enc_get_memory_layout(struct EnclaveMemoryLayout *enclave_memory_layout) {
+void enc_get_memory_layout(struct EnclaveMemoryLayout* enclave_memory_layout) {
   if (!enclave_memory_layout) return;
   struct SgxMemoryLayout memory_layout;
   sgx_memory_layout(&memory_layout);
@@ -56,12 +58,10 @@ void enc_get_memory_layout(struct EnclaveMemoryLayout *enclave_memory_layout) {
   enclave_memory_layout->thread_size = memory_layout.thread_size;
   enclave_memory_layout->stack_base = memory_layout.stack_base;
   enclave_memory_layout->stack_limit = memory_layout.stack_limit;
-  enclave_memory_layout->reserved_data_base = memory_layout.reserved_data_base;
-  enclave_memory_layout->reserved_data_size = memory_layout.reserved_data_size;
-  enclave_memory_layout->reserved_bss_base = memory_layout.reserved_bss_base;
-  enclave_memory_layout->reserved_bss_size = memory_layout.reserved_bss_size;
-  enclave_memory_layout->reserved_heap_base = memory_layout.reserved_heap_base;
-  enclave_memory_layout->reserved_heap_size = memory_layout.reserved_heap_size;
+  enclave_memory_layout->reserved_base = memory_layout.reserved_base;
+  enclave_memory_layout->reserved_size = memory_layout.reserved_size;
 }
 
+#ifdef __cplusplus
 }  //  extern "C"
+#endif

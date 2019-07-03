@@ -43,7 +43,7 @@ class QueueOperationsTest : public Test {
   // Destructively evaluates the list_ to ensure its items match what's passed
   // in as |expected_list|. list_ is empty after this function runs. If there is
   // a mismatch, reports a test error using EXPECT macros.
-  void VerifyListContentsAndDelete(const std::vector<int> &expected_list) {
+  void VerifyListContentsAndDelete(const std::vector<int>& expected_list) {
     for (const int expected_item : expected_list) {
       pthread_t actual_item = list_.Front();
       list_.Dequeue();
@@ -138,10 +138,21 @@ TEST_F(QueueOperationsTest, Dequeue) {
   VerifyListContentsAndDelete({3, 4});
 }
 
-TEST_F(QueueOperationsTest, DequeueEmpty) {
-  list_.Dequeue();
-  list_.Dequeue();
-  list_.Dequeue();
+class QueueOperationsTestAbort : public QueueOperations {
+ public:
+  QueueOperationsTestAbort(__pthread_list_t *list,
+                           const std::function<void()> &abort_func)
+      : QueueOperations(list, abort_func) {}
+};
+
+TEST_F(QueueOperationsTest, PopEmptyAborts) {
+  // Ensure that popping an empty list aborts.
+  int fake_abort_called_n_times = 0;
+  QueueOperationsTestAbort list(&raw_list_, [&fake_abort_called_n_times]() {
+    fake_abort_called_n_times++;
+  });
+  list.Dequeue();
+  EXPECT_EQ(fake_abort_called_n_times, 1);
 }
 
 TEST_F(QueueOperationsTest, Remove) {

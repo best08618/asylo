@@ -43,13 +43,8 @@ asylo_py_proto_library(
 py_binary(
     name = "code_generator",
     srcs = ["code_generator.py"],
-    visibility = ["//visibility:private"],
-    deps = [":code_generator_lib"],
-)
-
-py_library(
-    name = "code_generator_lib",
-    srcs = ["code_generator.py"],
+    # The input files to the code generator are the host calls textproto
+    # configuration file and the template files.
     data = [
         "host_calls.textproto",
         "templates/bridge_edl_template.txt",
@@ -80,6 +75,6 @@ py_test(
     name = "code_generator_test",
     srcs = ["code_generator_test.py"],
     deps = [
-        ":code_generator_lib",
+        ":code_generator",
     ],
 )

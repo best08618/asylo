@@ -14,16 +14,6 @@
 # limitations under the License.
 #
 
-load(
-    "//asylo/bazel:asylo.bzl",
-    "sgx_enclave_test",
-    cc_test = "cc_test_and_cc_enclave_test",
-    "ASYLO_ALL_BACKENDS",
-)
-load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
-load("//asylo/bazel:proto.bzl", "asylo_proto_library")
-load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
-
 licenses(["notice"])  # Apache v2.0
 
 # asylo POSIX interface.
@@ -31,6 +21,16 @@ licenses(["notice"])  # Apache v2.0
 package(
     default_visibility = ["//asylo:implementation"],
 )
+
+load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
+load("//asylo/bazel:proto.bzl", "asylo_proto_library")
+load(
+    "//asylo/bazel:asylo.bzl",
+    "enclave_test",
+    "cc_enclave_test",
+    "cc_test",
+)
+load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
 
 # Note: this target cannot be a cc_library because the toolchain itself depends
 # on these headers, which creates a circular dependency when cc_library adds a
@@ -48,7 +48,6 @@ filegroup(
 cc_library(
     name = "trusted_posix",
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     deps = select({
         "//asylo/platform/arch:sgx": [":posix"],
     }),
@@ -103,14 +102,13 @@ cc_library(
     }),
     copts = ASYLO_DEFAULT_COPTS,
     linkstatic = 1,
-    tags = ASYLO_ALL_BACKENDS,
     visibility = ["//visibility:private"],
     deps = [
         ":pthread_impl",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/synchronization",
         "//asylo/util:logging",
         "//asylo/platform/arch:trusted_arch",
-        "//asylo/platform/arch:trusted_fork",
         "//asylo/platform/common:bridge_types",
         "//asylo/platform/common:time_util",
         "//asylo/platform/core:shared_name",
@@ -128,80 +126,21 @@ cc_library(
 )
 
 # Test byteswap.h posix extension inside an enclave.
-cc_test(
+cc_enclave_test(
     name = "bswap_test",
     srcs = ["bswap_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        "//asylo/test/util:test_main",
         "@com_google_googletest//:gtest",
     ],
 )
 
 # Test for errno inside an enclave.
-cc_test(
+cc_enclave_test(
     name = "errno_test",
     srcs = ["errno_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        "//asylo/platform/storage/utils:fd_closer",
-        "//asylo/test/util:test_flags",
-        "//asylo/test/util:test_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "pipe_test",
-    srcs = ["pipe_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo/test/util:test_main",
-        "//asylo/util:cleanup",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "select_test",
-    srcs = ["select_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo/platform/storage/utils:fd_closer",
-        "//asylo/test/util:status_matchers",
-        "//asylo/test/util:test_main",
-        "//asylo/util:status",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-sgx_enclave(
-    name = "fork_test.so",
-    srcs = ["fork_test_enclave.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo/test/util:enclave_test_application",
-    ],
-)
-
-sgx_enclave_test(
-    name = "fork_test",
-    srcs = ["fork_test_driver.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    enclaves = {"enclave": "fork_test.so"},
-    test_args = ["--enclave_path='{enclave}'"],
-    deps = [
-        "//asylo:enclave_client",
-        "//asylo/test/util:enclave_assertion_authority_configs",
-        "//asylo/test/util:enclave_test",
-        "//asylo/test/util:status_matchers",
-        "//asylo/test/util:test_main",
-        "//asylo/util:status",
-        "@com_github_gflags_gflags//:gflags_nothreads",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -229,7 +168,22 @@ sgx_enclave(
     ],
 )
 
-sgx_enclave_test(
+cc_test(
+    name = "select_test",
+    srcs = ["select_test.cc"],
+    copts = ASYLO_DEFAULT_COPTS,
+    enclave_test_name = "select_enclave_test",
+    deps = [
+        "//asylo/platform/storage/utils:fd_closer",
+        "//asylo/test/util:status_matchers",
+        "//asylo/test/util:test_main",
+        "//asylo/util:status",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+enclave_test(
     name = "syscalls_test",
     srcs = ["syscalls_test_driver.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -240,7 +194,6 @@ sgx_enclave_test(
         "//asylo:enclave_client",
         "//asylo/platform/common:bridge_proto_serializer",
         "//asylo/test/util:enclave_test",
-        "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_main",
         "//asylo/util:logging",
         "//asylo/util:status",
@@ -250,22 +203,11 @@ sgx_enclave_test(
     ],
 )
 
-cc_test(
+cc_enclave_test(
     name = "times_test",
     srcs = ["times_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
-        "//asylo/test/util:test_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "syslog_test",
-    srcs = ["syslog_test.cc"],
-    copts = ASYLO_DEFAULT_COPTS,
-    deps = [
-        "//asylo/test/util:test_main",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -60,15 +60,6 @@ void *enc_untrusted_realloc(void *ptr, size_t size);
 // Releases memory on the untrusted heap.
 void enc_untrusted_free(void *ptr);
 
-// Allocates |count| buffers of size |size| on the untrusted heap, returning a
-// pointer to an array of buffer pointers.
-void **enc_untrusted_allocate_buffers(
-    size_t count, size_t size);
-
-// Releases memory on the untrusted heap pointed to by buffer pointers stored in
-// |free_list|.
-void enc_untrusted_deallocate_free_list(void **free_list, size_t count);
-
 //////////////////////////////////////
 //          Error Handling          //
 //////////////////////////////////////
@@ -92,16 +83,14 @@ int enc_untrusted_fsync(int fd);
 int enc_untrusted_access(const char *path_name, int mode);
 int enc_untrusted_chown(const char *path, uid_t owner, gid_t group);
 int enc_untrusted_link(const char *from, const char *to);
-int enc_untrusted_rename(const char *oldpath, const char *newpath);
 ssize_t enc_untrusted_readlink(const char *path, char *buf, size_t bufsize);
 int enc_untrusted_stat(const char *pathname, struct stat *stat_buffer);
 int enc_untrusted_lstat(const char *pathname, struct stat *stat_buffer);
 int enc_untrusted_symlink(const char *from, const char *to);
 int enc_untrusted_fstat(int fd, struct stat *stat_buffer);
 int enc_untrusted_isatty(int file);
-ssize_t enc_untrusted_writev(int fd, char *buf, int size);
-ssize_t enc_untrusted_readv(int fd, const struct iovec *iov, int iovcnt,
-                            char *buf, int size);
+ssize_t enc_untrusted_writev(int fd, const struct iovec *iov, int iovcnt);
+ssize_t enc_untrusted_readv(int fd, const struct iovec *iov, int iovcnt);
 
 //////////////////////////////////////
 //            Sockets               //
@@ -121,10 +110,8 @@ const char *enc_untrusted_inet_ntop(int af, const void *src, char *dst,
                                     socklen_t size);
 int enc_untrusted_inet_pton(int af, const char *src, void *dst);
 ssize_t enc_untrusted_send(int sockfd, const void *buf, size_t len, int flags);
-ssize_t enc_untrusted_sendmsg(
-    int sockfd, const struct bridge_msghdr *bridge_msg, int flags);
-ssize_t enc_untrusted_recvmsg(int sockfd, struct msghdr *msg,
-                              struct bridge_msghdr *bridge_msg, int flags);
+ssize_t enc_untrusted_sendmsg(int sockfd, const struct msghdr *msg, int flags);
+ssize_t enc_untrusted_recvmsg(int sockfd, struct msghdr *msg, int flags);
 int enc_untrusted_getaddrinfo(const char *node, const char *service,
                               const struct addrinfo *hints,
                               struct addrinfo **res);
@@ -259,7 +246,6 @@ int enc_untrusted_nanosleep(const struct timespec *req, struct timespec *rem);
 int enc_untrusted_gettimeofday(struct timeval *tv, void *tz);
 int enc_untrusted_times(struct tms *buf);
 int enc_untrusted_clock_gettime(clockid_t clk_id, struct timespec *tp);
-int enc_untrusted_getitimer(int which, struct itimerval *curr_value);
 int enc_untrusted_setitimer(int which, const struct itimerval *new_value,
                             struct itimerval *old_value);
 
@@ -267,7 +253,7 @@ int enc_untrusted_setitimer(int which, const struct itimerval *new_value,
 //            unistd.h              //
 //////////////////////////////////////
 
-int enc_untrusted_pipe2(int pipefd[2], int flags);
+int enc_untrusted_pipe(int pipefd[2]);
 int64_t enc_untrusted_sysconf(int name);
 uint32_t enc_untrusted_sleep(uint32_t seconds);
 int enc_untrusted_usleep(useconds_t usec);
@@ -280,9 +266,6 @@ pid_t enc_untrusted_getppid();
 pid_t enc_untrusted_setsid();
 int enc_untrusted_truncate(const char *path, off_t length);
 int enc_untrusted_ftruncate(int fd, off_t length);
-void enc_untrusted__exit(int rc);
-pid_t enc_untrusted_fork(const char *enclave_name, const char *config,
-                         size_t config_len, bool restore_snapshot);
 
 //////////////////////////////////////
 //            utime.h               //

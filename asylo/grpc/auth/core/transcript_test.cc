@@ -43,7 +43,7 @@ namespace {
 using google::protobuf::io::ArrayInputStream;
 using google::protobuf::io::ZeroCopyInputStream;
 
-constexpr char kData1[] = "A very uninteresting string.";
+constexpr char kData1[] = "A very uninteresting std::string.";
 constexpr char kData2[] = "Enclave Key Exchange Protocol";
 
 const int kInputStreamBlockSize = 4;
@@ -84,7 +84,7 @@ class TranscriptTest : public ::testing::Test {};
 
 typedef ::testing::Types<FakeHash, Sha256Hash> TestTypes;
 
-TYPED_TEST_SUITE(TranscriptTest, TestTypes);
+TYPED_TEST_CASE(TranscriptTest, TestTypes);
 
 // Verify that the hash function for a Transcript can only be set once.
 TYPED_TEST(TranscriptTest, SetHasherSucceedsOnce) {

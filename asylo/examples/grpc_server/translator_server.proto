@@ -18,16 +18,19 @@ syntax = "proto2";
 
 package examples.grpc_server;
 
-// An empty message to serve as the input to the Shutdown RPC.
-message ShutdownRequest {}
-
-// An empty message to serve as the output from the Shutdown RPC.
-message ShutdownResponse {}
-
 // A request message containing a word to be translated.
 message GetTranslationRequest {
-  optional string input_word = 1;
+  optional string input_word = 2;
 }
+
+// A request message containing a word to be translated.
+message GetMatMulRequest {
+  optional string tensor1_shape = 1;
+  repeated float tensor1 = 2;
+  optional string tensor2_shape = 3;
+  repeated float tensor2 = 4;
+}
+
 
 // A response message containing the translation of a GetTranslationRequest's
 // input_word.
@@ -35,12 +38,16 @@ message GetTranslationResponse {
   optional string translated_word = 1;
 }
 
+message GetMatmulResponse {
+  repeated float result = 1;
+}
+
 service Translator {
   // Translates the given word.
   rpc GetTranslation(GetTranslationRequest) returns (GetTranslationResponse) {
-    // errors: no input word, no translation available
+	  // errors: no input word, no translation available
+  }
+  rpc MatMul(GetMatMulRequest) returns (GetMatmulResponse) {
   }
 
-  // Shuts down the Translator server.
-  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
 }

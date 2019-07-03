@@ -19,6 +19,8 @@
 #ifndef ASYLO_PLATFORM_POSIX_INCLUDE_SYS_STAT_H_
 #define ASYLO_PLATFORM_POSIX_INCLUDE_SYS_STAT_H_
 
+#define mkdir enclave_mkdir
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,8 +30,6 @@ extern "C" {
 // May retrieve the information placed in |stat_buffer| from the host, depending
 // on which access domain |pathname| lies in.
 int lstat(const char *pathname, struct stat *stat_buffer);
-
-int mkdir(const char *pathname, mode_t mode);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -23,9 +23,9 @@ set -e
 readonly install_default=/opt/asylo/toolchains/sgx_x86_64
 
 # Dependency source files to use when fetching from online.
-readonly gcc_tag=gcc-7_4_0-release
+readonly gcc_tag=gcc-7_3_0-release
 readonly gcc_default="gcc-${gcc_tag}.tar.gz"  # github renames the archive.
-readonly gcc_default_sha="e1b1a60ca5c93e9838e6c0252d0aa977b76088114e68bc2753ff59c85328b308"
+readonly gcc_default_sha="af11c397296cab69996723b9d828c98a9bb749447ac8f7ed67458bcdb60311ed"
 readonly binutils_default=binutils-2.24.tar.gz
 readonly binutils_default_sha="4930b2886309112c00a279483eaef2f0f8e1b1b62010e0239c16b22af7c346d4"
 readonly newlib_default=newlib-2.5.0.20170922.tar.gz
@@ -468,15 +468,8 @@ export CXXFLAGS_FOR_TARGET="${CXXFLAGS}"
      --enable-languages=c,c++ \
      --enable-c99 \
      --enable-threads=posix &&
-   # gnu-user.opt defines -pthread as a valid flag.
    make configure-gcc &&
    sed -i 's^extra_opt_files=.*^& $(srcdir)/config/gnu-user.opt^' gcc/Makefile &&
-   # GCC hard-codes what math functions newlib provides, but has a few missing.
-   make configure-target-libstdc++-v3 &&
-   echo "#define HAVE_HYPOTF" >> x86_64-elf/libstdc++-v3/config.h &&
-   echo "#define HAVE_HYPOTL" >> x86_64-elf/libstdc++-v3/config.h &&
-   echo "#define HAVE_SQRTL" >> x86_64-elf/libstdc++-v3/config.h &&
-   echo "#define _GLIBCXX_USE_RANDOM_TR1" >> x86_64-elf/libstdc++-v3/config.h &&
    make -j"${JOBS}" && make install &&
    echo "installed compiler")
 

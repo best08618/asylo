@@ -58,10 +58,10 @@ cc_library(
     copts = ASYLO_DEFAULT_COPTS,
     visibility = ["//visibility:public"],
     deps = [
-        ":enclave_assertion_authority",
         ":enclave_assertion_authority_config_proto_cc",
-        ":enclave_assertion_generator",
-        ":enclave_assertion_verifier",
+        "//asylo/identity:enclave_assertion_authority",
+        "//asylo/identity:enclave_assertion_generator",
+        "//asylo/identity:enclave_assertion_verifier",
         "//asylo/util:logging",
         "//asylo/util:status",
     ],
@@ -80,17 +80,6 @@ cc_test(
         "//asylo/test/util:test_main",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_library(
-    name = "descriptions",
-    hdrs = ["descriptions.h"],
-    visibility = ["//asylo:implementation"],
-    deps = [
-        ":identity_proto_cc",
-        "//asylo/identity/null_identity:null_identity_constants",
-        "//asylo/identity/sgx:code_identity_constants",
     ],
 )
 

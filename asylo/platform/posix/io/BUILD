@@ -14,17 +14,16 @@
 # limitations under the License.
 #
 
+licenses(["notice"])  # Apache v2.0
+
+load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
 load(
     "//asylo/bazel:asylo.bzl",
-    "sgx_enclave_test",
+    "enclave_test",
     "cc_enclave_test",
     "cc_test",
-    "ASYLO_ALL_BACKENDS",
 )
 load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
-load("@linux_sgx//:sgx_sdk.bzl", "sgx_enclave")
-
-licenses(["notice"])  # Apache v2.0
 
 package(
     default_visibility = [
@@ -56,14 +55,11 @@ cc_library(
     ],
     copts = ASYLO_DEFAULT_COPTS,
     linkstatic = 1,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         ":util",
         "//asylo/platform/arch:trusted_arch",
         "//asylo/platform/common:bridge_proto_serializer",
         "//asylo/platform/common:memory",
-        "//asylo/platform/core:bridge_msghdr_wrapper",
-        "//asylo/platform/core:untrusted_cache_malloc",
         "//asylo/platform/crypto/gcmlib:gcm_cryptor",
         "//asylo/platform/crypto/gcmlib:trusted_gcmlib",
         "//asylo/platform/storage/secure:aead_handler",
@@ -72,7 +68,6 @@ cc_library(
         "//asylo/util:status",
         "@boringssl//:crypto",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
@@ -94,9 +89,9 @@ cc_library(
 # Test reading and writing to a file from inside an enclave.
 cc_enclave_test(
     name = "read_write_test",
-    size = "small",
     srcs = ["read_write_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
+    tags = ["noregression"],
     deps = [
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_flags",
@@ -114,7 +109,6 @@ cc_test(
     deps = [
         "//asylo/test/util:test_main",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/synchronization",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -122,13 +116,11 @@ cc_test(
 # Test for multi-threaded read/write inside an enclave.
 cc_enclave_test(
     name = "read_write_multithread_test",
-    size = "small",
     srcs = ["read_write_multithread_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
     deps = [
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_flags",
-        "//asylo/util:cleanup",
         "//asylo/util:logging",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
@@ -199,7 +191,7 @@ sgx_enclave(
     ],
 )
 
-sgx_enclave_test(
+enclave_test(
     name = "pipe_test",
     srcs = ["pipe_test_driver.cc"],
     copts = ASYLO_DEFAULT_COPTS,

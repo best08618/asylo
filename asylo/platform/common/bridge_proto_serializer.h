@@ -31,8 +31,7 @@ namespace asylo {
 
 constexpr int kIn6AddrNumBytes = 16;
 
-bool SerializeAddrinfo(const struct addrinfo *in, std::string *out,
-                       int *bridge_error_code);
+bool SerializeAddrinfo(const struct addrinfo *in, std::string *out);
 
 bool DeserializeAddrinfo(const std::string *in, struct addrinfo **out);
 
@@ -51,7 +50,7 @@ bool DeserializeRecvFromArgs(absl::string_view in, int *sockfd, size_t *len,
                              int *flags);
 
 bool SerializeRecvFromSrcAddr(struct sockaddr *src_addr, char **out,
-                              size_t *out_len, int *bridge_error_code);
+                              size_t *out_len);
 
 bool DeserializeRecvFromSrcAddr(absl::string_view in,
                                 struct sockaddr **src_addr);

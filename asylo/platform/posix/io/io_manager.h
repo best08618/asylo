@@ -19,15 +19,16 @@
 #ifndef ASYLO_PLATFORM_POSIX_IO_IO_MANAGER_H_
 #define ASYLO_PLATFORM_POSIX_IO_IO_MANAGER_H_
 
-#include <poll.h>
+#include <errno.h>
 #include <sys/epoll.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#include <poll.h>
+#include <stdint.h>
 #include <atomic>
-#include <cerrno>
-#include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <map>
@@ -35,7 +36,6 @@
 #include <queue>
 #include <type_traits>
 
-#include "absl/base/thread_annotations.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
@@ -59,6 +59,8 @@ class IOManager {
   // transparent inline encryption.
   class IOContext {
    public:
+    IOContext() : fd_reference_(0){}
+
     virtual ~IOContext() = default;
 
    protected:
@@ -236,11 +238,19 @@ class IOManager {
       errno = ENOSYS;
       return -1;
     }
-
     virtual int GetHostFileDescriptor() { return -1; }
+
+    void IncrementFdReference() { fd_reference_++; }
+
+    void DecrementFdReference() { fd_reference_--; }
+
+    bool IsNoFdReference() { return fd_reference_ == 0; }
 
    private:
     friend class IOManager;
+
+    // Number of file descriptors that refer to the IOContext.
+    std::atomic<int> fd_reference_;
   };
 
   // A VirtualPathHandler maps file paths to appropriate behavior
@@ -288,11 +298,6 @@ class IOManager {
       return -1;
     }
 
-    virtual int Rename(const char *oldpath, const char *newpath) {
-      errno = ENOSYS;
-      return -1;
-    }
-
     virtual int Unlink(const char *pathname) {
       errno = ENOSYS;
       return -1;
@@ -330,9 +335,8 @@ class IOManager {
 
     // Removes an entry from the table, destroying the associated IOContext if
     // this is the last reference to the IOContext, and returns the file
-    // descriptor to the free list. If close() is called on the host and that
-    // call fails, returns -1; otherwise, returns 0.
-    int Delete(int fd);
+    // descriptor to the free list.
+    void Delete(int fd);
 
     // Returns true if a specified file descriptor is available.
     bool IsFileDescriptorUnused(int fd);
@@ -365,46 +369,6 @@ class IOManager {
     int get_maximum_fd_hard_limit();
 
    private:
-    // A wrapper around IOContext that ensures that the IOContext is destroyed
-    // when there are no longer any references to it.
-    //
-    // A shared_ptr<AutoCloseIOContext> represents a file descriptor referring
-    // to a backing IOContext, whereas a shared_ptr<IOContext> keeps the
-    // IOContext alive, even if there are no file descriptors referencing it.
-    class AutoCloseIOContext {
-     public:
-      explicit AutoCloseIOContext(IOContext *context)
-          : close_result_(nullptr), context_(context) {}
-
-      ~AutoCloseIOContext() {
-        if (context_->Close() == -1) {
-          int *close_result = close_result_.load();
-          if (close_result) {
-            *close_result = -1;
-          }
-        }
-      }
-
-      std::shared_ptr<IOContext> Get() { return context_; }
-
-      // Indicates that if the Close() call in the destructor fails, then -1
-      // should be written to |close_result|. If called multiple times, only the
-      // most recent |close_result| pointer is used.
-      void WriteCloseResultTo(int *close_result) {
-        close_result_.store(close_result);
-      }
-
-     private:
-      // Where to write the result of the Close() call in the destructor if it
-      // fails. May be nullptr, in which case any Close() failures are silent.
-      std::atomic<int *> close_result_;
-
-      // The IOContext to wrap. A shared_ptr is used to ensure that calls using
-      // the context object don't end up with dangling pointers if the wrapping
-      // AutoCloseIOContext gets destroyed.
-      std::shared_ptr<IOContext> context_;
-    };
-
     // Returns whether |fd| is in expected range.
     bool IsFileDescriptorValid(int fd);
 
@@ -416,7 +380,7 @@ class IOManager {
     // |startfd|. Returns -1 if there is no file descriptor available.
     int GetNextFreeFileDescriptor(int startfd);
 
-    std::array<std::shared_ptr<AutoCloseIOContext>, kMaxOpenFiles> fd_table_;
+    std::array<std::shared_ptr<IOContext>, kMaxOpenFiles> fd_table_;
 
     // The maximum file descriptor number allowed.
     int maximum_fd_soft_limit;
@@ -477,12 +441,10 @@ class IOManager {
   // error.
   int Dup2(int oldfd, int newfd) LOCKS_EXCLUDED(fd_table_lock_);
 
-  // Creates a pipe with the given |flags|, which must be a bitwise-or of any
-  // combination of O_CLOEXEC, O_DIRECT, and O_NONBLOCK. The array |pipefd| is
-  // used to return two file descriptors referring to the ends of the pipe.
-  // |pipefd[0]| refers to the read end while |pipefd[1]| refers to the write
-  // end.
-  int Pipe(int pipefd[2], int flags);
+  // Creates a pipe. The array |pipefd| is used to return two file descriptors
+  // referring to the ends of the pipe. |pipefd[0]| refers to the read end while
+  // |pipefd[1]| refers to the write end.
+  int Pipe(int pipefd[2]);
 
   // Reads up to |count| bytes from the stream into |buf|, returning the number
   // of bytes read on success or -1 on error.
@@ -545,9 +507,6 @@ class IOManager {
 
   // Implements mkdir(2).
   int Mkdir(const char *pathname, mode_t mode);
-
-  // Implements rename(2).
-  int Rename(const char *oldpath, const char *newpath);
 
   // Implements writev(2).
   ssize_t Writev(int fd, const struct iovec *iov, int iovcnt);

@@ -16,16 +16,23 @@
  *
  */
 
-#ifndef ASYLO_PLATFORM_SYSTEM_INCLUDE_STRING_
-#define ASYLO_PLATFORM_SYSTEM_INCLUDE_STRING_
+#ifndef THIRD_PARTY_ASYLO_PLATFORM_SYSTEM_INCLUDE_STRING_
+#define THIRD_PARTY_ASYLO_PLATFORM_SYSTEM_INCLUDE_STRING_
 
 #include_next <string>
+
+// If we are not using the Google-internal version of <string> then add
+// std::string to the global namespace for compatibility with Google coding
+// conventions.
+#ifndef HAS_GLOBAL_STRING
+using std::string;
+#endif
 
 namespace std {
 
 // Unimplemented stub
-std::string to_string(int i);
+string to_string(int i);
 
 }
 
-#endif  // ASYLO_PLATFORM_SYSTEM_INCLUDE_STRING_
+#endif  // THIRD_PARTY_ASYLO_PLATFORM_SYSTEM_INCLUDE_STRING_

@@ -89,11 +89,11 @@ template <typename T>
 class TypedSingletonTest : public ::testing::Test {};
 
 typedef ::testing::Types<NumericConstant<0>,
-                         absl::flat_hash_map<std::string, std::string>,
-                         std::string, std::vector<uint8_t>>
+                         absl::flat_hash_map<std::string, std::string>, std::string,
+                         std::vector<uint8_t>>
     MyTypes;
 
-TYPED_TEST_SUITE(TypedSingletonTest, MyTypes);
+TYPED_TEST_CASE(TypedSingletonTest, MyTypes);
 
 // Launches eight threads and invokes Singleton<TypeParam>::get() from each
 // thread. If Singleton is working correctly, all threads must get the same

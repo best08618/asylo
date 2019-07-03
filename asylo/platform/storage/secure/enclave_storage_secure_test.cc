@@ -24,7 +24,6 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "absl/base/macros.h"
 #include "absl/strings/str_cat.h"
 #include "asylo/util/logging.h"
 #include "asylo/platform/arch/include/trusted/host_calls.h"
@@ -52,7 +51,6 @@ using platform::storage::secure_write;
 using ::testing::Not;
 
 constexpr size_t kMaxTestBufLen = 1000;
-constexpr char kTamperData[] = "Exceedingly rare string";
 
 class EnclaveStorageSecureTest : public ::testing::Test,
                                  public ::testing::WithParamInterface<size_t> {
@@ -63,13 +61,13 @@ class EnclaveStorageSecureTest : public ::testing::Test,
   Status OpenReadVerifyClose(off_t offset, size_t bytes_expected);
 
   const int64_t kFileHeaderLength = kFileHashLength + sizeof(size_t);
-  const std::string &GetPath() const { return path_; }
-  const void *GetWriteBuffer() const {
-    return reinterpret_cast<const void *>(write_buffer_);
+  const std::string& GetPath() const { return path_; }
+  const void* GetWriteBuffer() const {
+    return reinterpret_cast<const void*>(write_buffer_);
   }
-  void *GetReadBuffer() { return reinterpret_cast<void*>(read_buffer_); }
-  const void *GetZeroBuffer() const {
-    return reinterpret_cast<const void *>(zero_buffer_);
+  void* GetReadBuffer() { return reinterpret_cast<void*>(read_buffer_); }
+  const void* GetZeroBuffer() const {
+    return reinterpret_cast<const void*>(zero_buffer_);
   }
   int EmulateSetKeyIoctl(int fd) const {
     return AeadHandler::GetInstance().SetMasterKey(fd, key_.data(),
@@ -142,8 +140,6 @@ Status EnclaveStorageSecureTest::OpenWriteClose(off_t offset) {
     return Status(error::GoogleError::INTERNAL, "Secure write failed.");
   }
 
-  fd_closer.release();  // Make no more attempts to close before return.
-
   // Close.
   if (secure_close(fd) != 0) {
     return Status(error::GoogleError::INTERNAL, "Secure close failed.");
@@ -191,8 +187,6 @@ Status EnclaveStorageSecureTest::OpenReadVerifyClose(off_t offset,
     return Status(error::GoogleError::INTERNAL,
                   "Bytes read different from bytes written.");
   }
-
-  fd_closer.release();  // Make no more attempts to close before return.
 
   // Close.
   if (secure_close(fd) != 0) {
@@ -305,7 +299,7 @@ TEST_P(EnclaveStorageSecureTest, LseekReadWriteInterlacedMultiFdSuccess) {
     fds.push_back(fd);
   }
 
-  for (const int &fd : fds) {
+  for (const int& fd : fds) {
     EXPECT_EQ(secure_close(fd), 0);
   }
 }
@@ -488,12 +482,9 @@ TEST_P(EnclaveStorageSecureTest, ReadWriteDataModified) {
   int fd = enc_untrusted_open(GetPath().c_str(), O_WRONLY);
   EXPECT_GE(fd, 0);
   EXPECT_GT(enc_untrusted_lseek(fd, kFileHeaderLength, SEEK_SET), 0);
-  EXPECT_GT(enc_untrusted_write(fd, kTamperData, ABSL_ARRAYSIZE(kTamperData)),
-            0);
-  ASSERT_EQ(enc_untrusted_fsync(fd), 0) << strerror(errno);
-  ASSERT_EQ(enc_untrusted_close(fd), 0) << strerror(errno);
-  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_),
-              StatusIs(error::GoogleError::INTERNAL, "Secure read failed."));
+  EXPECT_GT(enc_untrusted_write(fd, "xx", 2), 0);
+  enc_untrusted_close(fd);
+  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_), Not(IsOk()));
 }
 
 TEST_P(EnclaveStorageSecureTest, ReadWriteDigestModified) {
@@ -501,12 +492,9 @@ TEST_P(EnclaveStorageSecureTest, ReadWriteDigestModified) {
   // Modify file digest - form of tampering.
   int fd = enc_untrusted_open(GetPath().c_str(), O_WRONLY);
   EXPECT_GE(fd, 0);
-  EXPECT_GT(enc_untrusted_write(fd, kTamperData, ABSL_ARRAYSIZE(kTamperData)),
-            0);
-  ASSERT_EQ(enc_untrusted_fsync(fd), 0) << strerror(errno);
-  ASSERT_EQ(enc_untrusted_close(fd), 0) << strerror(errno);
-  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_),
-              StatusIs(error::GoogleError::INTERNAL, "Set master Key failed."));
+  EXPECT_GT(enc_untrusted_write(fd, "xx", 2), 0);
+  enc_untrusted_close(fd);
+  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_), Not(IsOk()));
 }
 
 TEST_P(EnclaveStorageSecureTest, ReadWriteAuthTagsModified) {
@@ -517,12 +505,9 @@ TEST_P(EnclaveStorageSecureTest, ReadWriteAuthTagsModified) {
   ASSERT_GE(fd, 0);
   EXPECT_GT(enc_untrusted_lseek(fd, kFileHeaderLength + kBlockLength, SEEK_SET),
             0);
-  EXPECT_GT(enc_untrusted_write(fd, kTamperData, ABSL_ARRAYSIZE(kTamperData)),
-            0);
-  ASSERT_EQ(enc_untrusted_fsync(fd), 0) << strerror(errno);
-  ASSERT_EQ(enc_untrusted_close(fd), 0) << strerror(errno);
-  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_),
-              StatusIs(error::GoogleError::INTERNAL, "Set master Key failed."));
+  EXPECT_GT(enc_untrusted_write(fd, "xx", 2), 0);
+  enc_untrusted_close(fd);
+  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_), Not(IsOk()));
 }
 
 TEST_P(EnclaveStorageSecureTest, ReadWriteTokensModified) {
@@ -534,12 +519,9 @@ TEST_P(EnclaveStorageSecureTest, ReadWriteTokensModified) {
   EXPECT_GT(
       enc_untrusted_lseek(fd, kFileHeaderLength + kCipherBlockLength, SEEK_SET),
       0);
-  EXPECT_GT(enc_untrusted_write(fd, kTamperData, ABSL_ARRAYSIZE(kTamperData)),
-            0);
-  ASSERT_EQ(enc_untrusted_fsync(fd), 0) << strerror(errno);
-  ASSERT_EQ(enc_untrusted_close(fd), 0) << strerror(errno);
-  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_),
-              StatusIs(error::GoogleError::INTERNAL, "Secure read failed."));
+  EXPECT_GT(enc_untrusted_write(fd, "xx", 2), 0);
+  enc_untrusted_close(fd);
+  EXPECT_THAT(OpenReadVerifyClose(0, test_buf_len_), Not(IsOk()));
 }
 
 TEST_P(EnclaveStorageSecureTest, FileTruncateAttack) {
@@ -548,8 +530,7 @@ TEST_P(EnclaveStorageSecureTest, FileTruncateAttack) {
   // Truncate the file - form of tampering.
   int fd = enc_untrusted_open(GetPath().c_str(), O_WRONLY | O_TRUNC);
   enc_untrusted_close(fd);
-  EXPECT_THAT(OpenWriteClose(0),
-              StatusIs(error::GoogleError::INTERNAL, "Set Master Key failed."));
+  EXPECT_THAT(OpenWriteClose(0), Not(IsOk()));
 }
 
 TEST_P(EnclaveStorageSecureTest, KeyNotSetFailure) {

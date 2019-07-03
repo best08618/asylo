@@ -122,32 +122,10 @@ class SyscallsEnclave : public EnclaveTestCase {
       return RunChModTest(test_input.path_name());
     } else if (test_input.test_target() == "getifaddrs") {
       return RunGetIfAddrsTest(output);
-    } else if (test_input.test_target() == "getsockname_ebadf") {
-      return RunGetSocknameFailureTest_EBADF();
-    } else if (test_input.test_target() == "getsockname_efault") {
-      return RunGetSocknameFailureTest_EFAULT();
-    } else if (test_input.test_target() == "getsockname_einval") {
-      return RunGetSocknameFailureTest_EINVAL();
-    } else if (test_input.test_target() == "getsockname_enotsock") {
-      return RunGetSocknameFailureTest_ENOTSOCK();
-    } else if (test_input.test_target() == "getpeername_ebadf") {
-      return RunGetPeernameFailureTest_EBADF();
-    } else if (test_input.test_target() == "getpeername_efault") {
-      return RunGetPeernameFailureTest_EFAULT();
-    } else if (test_input.test_target() == "getpeername_einval") {
-      return RunGetPeernameFailureTest_EINVAL();
-    } else if (test_input.test_target() == "getpeername_enotsock") {
-      return RunGetPeernameFailureTest_ENOTSOCK();
-    } else if (test_input.test_target() == "getpeername_enotconn") {
-      return RunGetPeernameFailureTest_ENOTCONN();
     } else if (test_input.test_target() == "truncate") {
       return RunTruncateTest(test_input.path_name());
     } else if (test_input.test_target() == "mmap") {
       return RunMmapTest();
-    } else if (test_input.test_target() == "itimer") {
-      return RunItimerTest();
-    } else if (test_input.test_target() == "rename") {
-      return RunRenameTest(test_input.path_name());
     }
 
     LOG(ERROR) << "Failed to identify test to execute.";
@@ -1081,150 +1059,12 @@ class SyscallsEnclave : public EnclaveTestCase {
     asylo::SerializeIfAddrs(front, &serialized_ifaddrs, &len);
     freeifaddrs(front);
     SyscallsTestOutput output_ret;
-    output_ret.set_serialized_proto_return(
-        std::string(serialized_ifaddrs, len));
+    output_ret.set_serialized_proto_return(std::string(serialized_ifaddrs, len));
     output_ret.set_int_syscall_return(ret);
     if (output) {
       output->MutableExtension(syscalls_test_output)->CopyFrom(output_ret);
     }
     return Status::OkStatus();
-  }
-
-  Status ExpectErrno(int expected_errno, int retval) {
-    int saved_errno = errno;
-
-    if (retval != -1) {
-      return Status(error::GoogleError::INTERNAL,
-                    absl::StrCat("Expected retval of -1, got ", retval));
-    }
-
-    if (saved_errno != expected_errno) {
-      return Status(error::GoogleError::INTERNAL,
-                    absl::StrCat("Expected errno of ", expected_errno, "; got ",
-                                 saved_errno));
-    }
-
-    return Status::OkStatus();
-  }
-
-  // getsockname()
-
-  // EBADF: Returned if you pass an invalid file descriptor.
-  Status RunGetSocknameFailureTest_EBADF() {
-    sockaddr sa;
-    socklen_t sa_len = sizeof(sa);
-
-    return ExpectErrno(EBADF, getsockname(-1, &sa, &sa_len));
-  }
-
-  // EFAULT: Returned if you pass a bad pointer.
-  Status RunGetSocknameFailureTest_EFAULT() {
-    sockaddr sa;
-    socklen_t sa_len = sizeof(sa);
-
-    int fd = socket(AF_INET6, SOCK_STREAM, 0);
-
-    if (fd < 0) {
-      return Status(error::GoogleError::INTERNAL,
-                    absl::StrCat("couldn't create socket, errno ", errno));
-    }
-
-    return ExpectErrno(EFAULT, getsockname(fd, nullptr, &sa_len));
-  }
-
-  // EINVAL: Returned if you give an invalid (negative) sockaddr length.
-  Status RunGetSocknameFailureTest_EINVAL() {
-    sockaddr sa;
-    socklen_t sa_len = -1;
-    int fd = socket(AF_INET6, SOCK_STREAM, 0);
-
-    if (fd < 0) {
-      return Status(error::GoogleError::INTERNAL,
-                    absl::StrCat("couldn't create socket, errno ", errno));
-    }
-
-    return ExpectErrno(EINVAL, getsockname(fd, &sa, &sa_len));
-  }
-
-  // ENOTSOCK: Returned if you pass an FD of something other than a socket.
-  Status RunGetSocknameFailureTest_ENOTSOCK() {
-    int fds[2];
-    int ret = pipe(fds);
-    if (ret != 0) {
-      return Status(static_cast<error::PosixError>(errno),
-                    "couldn't create pipe");
-    }
-
-    sockaddr sa;
-    socklen_t sa_len = sizeof(sa);
-    return ExpectErrno(ENOTSOCK, getsockname(fds[0], &sa, &sa_len));
-  }
-
-  // getpeername()
-
-  // EBADF: Returned if you pass an invalid file descriptor.
-  Status RunGetPeernameFailureTest_EBADF() {
-    sockaddr sa;
-    socklen_t sa_len = sizeof(sa);
-
-    return ExpectErrno(EBADF, getpeername(-1, &sa, &sa_len));
-  }
-
-  // EFAULT: Returned if you pass a bad pointer.
-  Status RunGetPeernameFailureTest_EFAULT() {
-    sockaddr sa;
-    socklen_t sa_len = sizeof(sa);
-
-    int fd = socket(AF_INET6, SOCK_STREAM, 0);
-
-    if (fd < 0) {
-      return Status(error::GoogleError::INTERNAL,
-                    absl::StrCat("couldn't create socket, errno ", errno));
-    }
-
-    return ExpectErrno(EFAULT, getpeername(fd, nullptr, &sa_len));
-  }
-
-  // EINVAL: Returned if you give an invalid (negative) sockaddr length.
-  Status RunGetPeernameFailureTest_EINVAL() {
-    sockaddr sa;
-    socklen_t sa_len = -1;
-    int fd = socket(AF_INET6, SOCK_STREAM, 0);
-
-    if (fd < 0) {
-      return Status(error::GoogleError::INTERNAL,
-                    absl::StrCat("couldn't create socket, errno ", errno));
-    }
-
-    return ExpectErrno(EINVAL, getpeername(fd, &sa, &sa_len));
-  }
-
-  // ENOTCONN: Returned if you pass a socket that is not yet connected.
-  Status RunGetPeernameFailureTest_ENOTCONN() {
-    sockaddr sa;
-    socklen_t sa_len = sizeof(sa);
-    int fd = socket(AF_INET6, SOCK_STREAM, 0);
-
-    if (fd < 0) {
-      return Status(error::GoogleError::INTERNAL,
-                    absl::StrCat("couldn't create socket, errno ", errno));
-    }
-
-    return ExpectErrno(ENOTCONN, getpeername(fd, &sa, &sa_len));
-  }
-
-  // ENOTSOCK: Returned if you pass an FD of something other than a socket.
-  Status RunGetPeernameFailureTest_ENOTSOCK() {
-    int fds[2];
-    int ret = pipe(fds);
-    if (ret != 0) {
-      return Status(static_cast<error::PosixError>(errno),
-                    "couldn't create pipe");
-    }
-
-    sockaddr sa;
-    socklen_t sa_len = sizeof(sa);
-    return ExpectErrno(ENOTSOCK, getpeername(fds[0], &sa, &sa_len));
   }
 
   Status RunTruncateTest(const std::string &path) {
@@ -1305,7 +1145,7 @@ class SyscallsEnclave : public EnclaveTestCase {
       return Status(error::GoogleError::INTERNAL,
                     "mmap(MAP_ANONYMOUS) returned non-page-aligned memory");
     }
-    char *cptr = static_cast<char *>(ptr);
+    char *cptr = static_cast<char*>(ptr);
     if (std::count(cptr, cptr + 10000, '\0') != 10000) {
       return Status(error::GoogleError::INTERNAL,
                     "mmap(MAP_ANONYMOUS) returned uninitialized memory");
@@ -1314,69 +1154,6 @@ class SyscallsEnclave : public EnclaveTestCase {
       return Status(static_cast<error::PosixError>(errno),
                     "munmap() failed");
     }
-    return Status::OkStatus();
-  }
-
-  Status RunItimerTest() {
-    itimerval timer_val;
-    timer_val.it_interval.tv_sec = 100;
-    timer_val.it_interval.tv_usec = 12;
-    timer_val.it_value.tv_sec = 100;
-    timer_val.it_value.tv_usec = 0;
-
-    // Set a timer value.
-    if (setitimer(ITIMER_REAL, &timer_val, nullptr) != 0) {
-      perror("setitimer");
-      return Status(error::GoogleError::INTERNAL, "setitimer failure 1");
-    }
-
-    // Call setitimer again and make sure the old value was returned with the
-    // correct interval and a decreased time-till-next-fire.
-    itimerval time_till_next;
-    if (setitimer(ITIMER_REAL, &timer_val, &time_till_next) != 0) {
-      perror("setitimer");
-      return Status(error::GoogleError::INTERNAL, "setitimer failure 2");
-    }
-    if (time_till_next.it_interval.tv_sec != timer_val.it_interval.tv_sec ||
-        time_till_next.it_interval.tv_usec != timer_val.it_interval.tv_usec) {
-      return Status(error::GoogleError::INTERNAL, "setitimer failure 3");
-    }
-    if (time_till_next.it_value.tv_sec >= timer_val.it_interval.tv_sec) {
-      return Status(error::GoogleError::INTERNAL, "setitimer failure 4");
-    }
-
-    // Make sure getitimer works too.
-    itimerval curr_val;
-    if (getitimer(ITIMER_REAL, &curr_val) != 0) {
-      return Status(error::GoogleError::INTERNAL, "getitimer failure 1");
-    }
-    if (curr_val.it_interval.tv_sec != timer_val.it_interval.tv_sec ||
-        curr_val.it_interval.tv_usec != timer_val.it_interval.tv_usec) {
-      return Status(error::GoogleError::INTERNAL, "getitimer failure 2");
-    }
-
-    return Status::OkStatus();
-  }
-
-  Status RunRenameTest(const std::string &path) {
-    if (path.empty()) {
-      return Status(error::GoogleError::INVALID_ARGUMENT, "File path not set");
-    }
-
-    // Create a file and rename it.
-    int fd = open((path + "/oldname").c_str(), O_RDWR | O_CREAT, 0777);
-    if (fd < 0) {
-      return Status(static_cast<error::PosixError>(errno),
-                    absl::StrCat("failed to create file in: ", path,
-                                 ", error: ", strerror(errno)));
-    }
-    close(fd);
-    if (rename((path + "/oldname").c_str(), (path + "/rename").c_str()) < 0) {
-      return Status(static_cast<error::PosixError>(errno),
-                    absl::StrCat("failed to rename file in: ", path,
-                                 ", error: ", strerror(errno)));
-    }
-
     return Status::OkStatus();
   }
 };

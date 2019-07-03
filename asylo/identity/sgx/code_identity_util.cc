@@ -25,7 +25,6 @@
 #include "absl/strings/str_cat.h"
 #include "asylo/crypto/util/bssl_util.h"
 #include "asylo/crypto/util/bytes.h"
-#include "asylo/identity/descriptions.h"
 #include "asylo/identity/identity.pb.h"
 #include "asylo/identity/sgx/attributes.pb.h"
 #include "asylo/identity/sgx/attributes_util.h"
@@ -72,7 +71,12 @@ Status GetReportKey(const UnsafeBytes<kKeyrequestKeyidSize> &keyid,
   ClearSecsAttributeSet(&request->attributemask);
   request->miscmask = 0;
 
-  return GetHardwareKey(*request, key);
+  if (!GetHardwareKey(*request, key)) {
+    return Status(::asylo::error::GoogleError::INTERNAL,
+                  "Could not get required hardware key");
+  }
+
+  return Status::OkStatus();
 }
 
 }  // namespace

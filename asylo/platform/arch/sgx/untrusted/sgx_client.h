@@ -23,10 +23,8 @@
 
 #include "absl/base/macros.h"
 #include "asylo/enclave.pb.h"
-#include "asylo/platform/arch/fork.pb.h"
 #include "asylo/platform/core/enclave_client.h"
 #include "asylo/platform/core/enclave_manager.h"
-#include "asylo/platform/primitives/sgx/untrusted_sgx.h"
 #include "asylo/util/status.h"
 #include "asylo/util/statusor.h"
 #include "include/sgx_urts.h"
@@ -48,18 +46,10 @@ class SgxClient : public EnclaveClient {
 
   void *base_address() { return base_address_; }
   const void *base_address() const { return base_address_; }
-  const size_t &size() { return size_; }
-
-  // Sets a new expected process ID for an existing SGX enclave.
-  void SetProcessId();
 
  private:
   friend class SgxLoader;
   friend class SgxEmbeddedLoader;
-
-  // Syncs the SgxClient instance with the SgxEnclaveClient instance defined in
-  // primitives.
-  void Sync(std::shared_ptr<primitives::Client> primitive_client);
 
   Status EnterAndInitialize(const EnclaveConfig &config) override;
   Status EnterAndFinalize(const EnclaveFinal &final_input) override;
@@ -67,18 +57,12 @@ class SgxClient : public EnclaveClient {
   Status EnterAndHandleSignal(const EnclaveSignal &signal) override;
   Status EnterAndTakeSnapshot(SnapshotLayout *snapshot_layout) override;
   Status EnterAndRestore(const SnapshotLayout &snapshot_layout) override;
-  Status EnterAndTransferSecureSnapshotKey(
-      const ForkHandshakeConfig &fork_handshake_config) override;
   Status DestroyEnclave() override;
 
-  std::string path_;                // Path to enclave object file.
+  std::string path_;               // Path to enclave object file.
   sgx_launch_token_t token_ = {0};  // SGX SDK launch token.
   sgx_enclave_id_t id_;       // SGX SDK enclave identifier.
   void *base_address_;        // Enclave base address.
-  size_t size_;               // Enclave size.
-
-  // Primitive SGX client.
-  std::shared_ptr<primitives::SgxEnclaveClient> primitive_sgx_client_;
 };
 
 /// Enclave loader for Intel Software Guard Extensions (SGX) based enclaves
@@ -95,7 +79,7 @@ class SgxLoader : public EnclaveLoader {
 
  private:
   StatusOr<std::unique_ptr<EnclaveClient>> LoadEnclave(
-      const std::string &name, void *base_address, const size_t enclave_size,
+      const std::string &name, void *base_address,
       const EnclaveConfig &config) const override;
 
   StatusOr<std::unique_ptr<EnclaveLoader>> Copy() const override;
@@ -119,7 +103,7 @@ class SgxEmbeddedLoader : public EnclaveLoader {
 
  private:
   StatusOr<std::unique_ptr<EnclaveClient>> LoadEnclave(
-      const std::string &name, void *base_address, const size_t enclave_size,
+      const std::string &name, void *base_address,
       const EnclaveConfig &config) const override;
 
   StatusOr<std::unique_ptr<EnclaveLoader>> Copy() const override;

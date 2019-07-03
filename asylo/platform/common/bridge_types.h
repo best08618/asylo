@@ -145,77 +145,26 @@ enum SignalCode {
   BRIDGE_SI_MESGQ = 5,
 };
 
-// The address info ai_flags bitset constituent values that specify options of
-// an addrinfo struct.
+// The address info flags that specifies options of an addrinfo struct.
 enum AddrInfoFlags {
   BRIDGE_AI_CANONNAME = 0x0002,
   BRIDGE_AI_NUMERICHOST = 0x0004,
-  BRIDGE_AI_V4MAPPED = 0x0008,
-  BRIDGE_AI_ADDRCONFIG = 0x0010,
-  BRIDGE_AI_ALL = 0x0020,
-  BRIDGE_AI_PASSIVE = 0x0040,
-  BRIDGE_AI_NUMERICSERV = 0x0080,
-  BRIDGE_AI_IDN = 0x0100,
-  BRIDGE_AI_CANONIDN = 0x0200,
-  BRIDGE_AI_IDN_ALLOW_UNASSIGNED = 0x0400,
-  BRIDGE_AI_IDN_USE_STD3_ASCII_RULES = 0x0800,
-};
-
-// The possible return error codes for getaddrinfo.
-enum AddrInfoErrorCode {
-  BRIDGE_EAI_SUCCESS = 0,
-  BRIDGE_EAI_ADDRFAMILY = 1,
-  BRIDGE_EAI_AGAIN = 2,
-  BRIDGE_EAI_BADFLAGS = 3,
-  BRIDGE_EAI_FAIL = 4,
-  BRIDGE_EAI_FAMILY = 5,
-  BRIDGE_EAI_MEMORY = 6,
-  BRIDGE_EAI_NODATA = 7,
-  BRIDGE_EAI_NONAME = 8,
-  BRIDGE_EAI_SERVICE = 9,
-  BRIDGE_EAI_SOCKTYPE = 10,
-  BRIDGE_EAI_SYSTEM = 11,
-  BRIDGE_EAI_OVERFLOW = 12,
-  BRIDGE_EAI_INPROGRESS = 13,
-  BRIDGE_EAI_CANCELED = 14,
-  BRIDGE_EAI_ALLDONE = 15,
-  BRIDGE_EAI_INTR = 16,
-  BRIDGE_EAI_IDN_ENCODE = 17,
-  BRIDGE_EAI_UNKNOWN = 20,  // The result of a bad translation.
-};
-
-// Possible values for socket(2)'s type argument, and ai_socktype in the
-// AddressInfo struct.
-enum BridgeSocketType {
-  BRIDGE_SOCK_UNSUPPORTED = 0,
-  BRIDGE_SOCK_STREAM = 1,
-  BRIDGE_SOCK_DGRAM = 2,
-  BRIDGE_SOCK_SEQPACKET = 3,
-  BRIDGE_SOCK_RAW = 4,
-  BRIDGE_SOCK_RDM = 5,
-  BRIDGE_SOCK_PACKET = 6,
-  // The following two values may be bitwise-ORd with any of the above values.
-  BRIDGE_SOCK_O_NONBLOCK = 0x0100,
-  BRIDGE_SOCK_O_CLOEXEC = 0x0200,
-  BRIDGE_SOCK_TYPE_FLAGS = BRIDGE_SOCK_O_NONBLOCK | BRIDGE_SOCK_O_CLOEXEC,
 };
 
 // All of the file operation flags supported inside the enclave.
 enum FileStatusFlags {
-  BRIDGE_RDONLY = 0x00,
-  BRIDGE_WRONLY = 0x01,
-  BRIDGE_RDWR = 0x02,
-  BRIDGE_CREAT = 0x40,
-  BRIDGE_EXCL = 0x80,
-  BRIDGE_TRUNC = 0x200,
-  BRIDGE_APPEND = 0x400,
-  BRIDGE_NONBLOCK = 0x800,
-  BRIDGE_DIRECT = 0x1000,
-  BRIDGE_O_CLOEXEC = 0x2000,
+  RDONLY = 0x00,
+  WRONLY = 0x01,
+  RDWR = 0x02,
+  CREAT = 0x40,
+  EXCL = 0x80,
+  TRUNC = 0x200,
+  APPEND = 0x400,
+  NONBLOCK = 0x800,
 };
 
 enum FileDescriptorFlags {
-  BRIDGE_CLOEXEC = 0x01,
+  CLOEXEC = 0x01,
 };
 
 // All the syslog options supported inside the enclave.
@@ -252,16 +201,6 @@ enum SysLogLevel {
   BRIDGE_LOG_NOTICE = 5,
   BRIDGE_LOG_INFO = 6,
   BRIDGE_LOG_DEBUG = 7,
-};
-
-// All fcntl cmd arguments supported inside the enclave.
-enum FcntlCommands {
-  BRIDGE_F_GETFD = 1,
-  BRIDGE_F_SETFD = 2,
-  BRIDGE_F_GETFL = 3,
-  BRIDGE_F_SETFL = 4,
-  BRIDGE_F_GETPIPE_SZ = 5,
-  BRIDGE_F_SETPIPE_SZ = 6,
 };
 
 // All tcp option names supported inside the enclave.
@@ -301,34 +240,9 @@ enum SocketOptionNames {
 };
 
 enum AfFamily {
-  BRIDGE_AF_UNSUPPORTED = 0,
   BRIDGE_AF_INET = 1,
   BRIDGE_AF_INET6 = 2,
-  BRIDGE_AF_UNSPEC = 3,
-  BRIDGE_AF_UNIX = 4,
-  BRIDGE_AF_LOCAL = 5,
-  BRIDGE_AF_IPX = 6,
-  BRIDGE_AF_NETLINK = 7,
-  BRIDGE_AF_X25 = 8,
-  BRIDGE_AF_AX25 = 9,
-  BRIDGE_AF_ATMPVC = 10,
-  BRIDGE_AF_APPLETALK = 11,
-  BRIDGE_AF_PACKET = 12,
-  BRIDGE_AF_ALG = 13,
-};
-
-enum BridgePollEvents {
-  BRIDGE_POLLIN = 0x001,
-  BRIDGE_POLLPRI = 0x002,
-  BRIDGE_POLLOUT = 0x004,
-  BRIDGE_POLLRDHUP = 0x008,
-  BRIDGE_POLLERR = 0x010,
-  BRIDGE_POLLHUP = 0x020,
-  BRIDGE_POLLNVAL = 0x040,
-  BRIDGE_POLLRDNORM = 0x080,
-  BRIDGE_POLLRDBAND = 0x100,
-  BRIDGE_POLLWRNORM = 0x200,
-  BRIDGE_POLLWRBAND = 0x400,
+  BRIDGE_AF_UNSUPPORTED = 3,
 };
 
 struct bridge_in_addr {
