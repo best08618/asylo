@@ -27,13 +27,14 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "absl/base/thread_annotations.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "asylo/examples/grpc_server/translator_server.grpc.pb.h"
 #include "gflags/gflags.h"
+#include "asylo/util/logging.h"
 #include "asylo/test/util/exec_tester.h"
 #include "asylo/test/util/status_matchers.h"
 #include "asylo/util/status.h"
@@ -44,8 +45,8 @@
 DEFINE_string(enclave_path, "",
               "The path to the server enclave to pass to the enclave loader");
 
-DEFINE_int32(server_max_lifetime, 10,
-             "The number of seconds to allow the server to run for this test");
+// The number of seconds to run the server for this test.
+constexpr int kServerLifetime = 1;
 
 // A regex matching the log message that contains the port.
 constexpr char kPortMessageRegex[] = "Server started on port [0-9]+";
@@ -64,7 +65,7 @@ class ServerEnclaveExecTester : public asylo::experimental::ExecTester {
  public:
   ServerEnclaveExecTester(const std::vector<std::string> &args,
                           absl::Mutex *server_port_mutex, int *server_port)
-      : ExecTester(args),
+        : ExecTester(args),
         server_port_found_(false),
         server_thread_state_mutex_(server_port_mutex),
         server_port_(server_port) {}
@@ -117,7 +118,7 @@ class GrpcServerTest : public ::testing::Test {
         asylo::experimental::ExecTester::BuildSiblingPath(
             FLAGS_enclave_path, "grpc_server_host_loader"),
         absl::StrCat("--enclave_path=", FLAGS_enclave_path),
-        absl::StrCat("--server_max_lifetime=", FLAGS_server_max_lifetime),
+        absl::StrCat("--server_lifetime=", kServerLifetime),
     });
 
     server_port_found_ = false;
@@ -158,12 +159,6 @@ class GrpcServerTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    ::grpc::ClientContext context;
-    ShutdownRequest request;
-    ShutdownResponse response;
-    EXPECT_THAT(asylo::Status(stub_->Shutdown(&context, request, &response)),
-                IsOk());
-
     server_thread_->join();
     ASSERT_TRUE(server_port_found_);
     ASSERT_TRUE(WIFEXITED(server_exit_status_))
@@ -179,8 +174,7 @@ class GrpcServerTest : public ::testing::Test {
   // Sends a GetTranslation RPC to the server. Returns the same grpc::Status as
   // the stub function call. If the RPC is successful, then sets
   // |*translated_word| to the received translation.
-  asylo::Status MakeRpc(const std::string &input_word,
-                        std::string *translated_word) {
+  asylo::Status MakeRpc(const std::string &input_word, std::string *translated_word) {
     ::grpc::ClientContext context;
     GetTranslationRequest request;
     GetTranslationResponse response;
@@ -247,8 +241,8 @@ TEST_F(GrpcServerTest, KubernetesTranslatesToHelmsman) {
 TEST_F(GrpcServerTest, OrkutTranslationNotFound) {
   std::string orkut_translation;
   asylo::Status status = MakeRpc("orkut", &orkut_translation);
-  EXPECT_THAT(status, StatusIs(asylo::error::INVALID_ARGUMENT,
-                               "No known translation for \"orkut\""));
+  ASSERT_THAT(status, StatusIs(asylo::error::INVALID_ARGUMENT));
+  EXPECT_EQ(status.error_message(), "No known translation for \"orkut\"");
 }
 
 }  // namespace

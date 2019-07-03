@@ -14,20 +14,6 @@
 # limitations under the License.
 #
 
-load(
-    "//asylo/bazel:asylo.bzl",
-    "enclave_loader",
-    "sim_enclave",
-    "sgx_enclave_test",
-    "ASYLO_ALL_BACKENDS",
-)
-load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
-load(
-    "//asylo/bazel:proto.bzl",
-    "asylo_proto_library",
-    "asylo_grpc_proto_library",
-)
-
 licenses(["notice"])  # Apache v2.0
 
 # Example demonstrating gRPC in Asylo.
@@ -36,11 +22,23 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+load(
+    "//asylo/bazel:asylo.bzl",
+    "enclave_loader",
+    "sim_enclave",
+    "enclave_test",
+)
+load(
+    "//asylo/bazel:proto.bzl",
+    "asylo_proto_library",
+    "asylo_grpc_proto_library",
+)
+load("//asylo/bazel:copts.bzl", "ASYLO_DEFAULT_COPTS")
+
 # The generated code for the translator server (and client).
 asylo_grpc_proto_library(
     name = "translator_server_grpc_proto",
     srcs = ["translator_server.proto"],
-    tags = ASYLO_ALL_BACKENDS,
 )
 
 # The implementation of the translation server.
@@ -49,11 +47,9 @@ cc_library(
     srcs = ["translator_server.cc"],
     hdrs = ["translator_server.h"],
     copts = ASYLO_DEFAULT_COPTS,
-    tags = ASYLO_ALL_BACKENDS,
     deps = [
         ":translator_server_grpc_proto",
         "@com_github_grpc_grpc//:grpc++",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
@@ -80,10 +76,8 @@ sim_enclave(
         "//asylo/util:status",
         "@com_github_grpc_grpc//:grpc++",
         "@com_github_grpc_grpc//:grpc++_reflection",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
     ],
 )
 
@@ -99,12 +93,14 @@ enclave_loader(
         "//asylo:enclave_client",
         "//asylo/util:logging",
         "@com_github_gflags_gflags//:gflags_nothreads",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
     ],
 )
 
 # A test of the example using the generated client stubs rather than the gRPC
 # command-line interface.
-sgx_enclave_test(
+enclave_test(
     name = "grpc_server_test",
     srcs = ["grpc_server_test.cc"],
     copts = ASYLO_DEFAULT_COPTS,
@@ -116,13 +112,14 @@ sgx_enclave_test(
         "//asylo/test/util:exec_tester",
         "//asylo/test/util:status_matchers",
         "//asylo/test/util:test_main",
+        "//asylo/util:logging",
         "//asylo/util:status",
         "@com_github_gflags_gflags//:gflags_nothreads",
         "@com_github_grpc_grpc//:grpc++",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest",
     ],
 )
