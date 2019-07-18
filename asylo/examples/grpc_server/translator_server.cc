@@ -236,14 +236,23 @@ void TranslatorServer::deleteMemory() {
 		input_str1.push_back(request->tensor1(i));
 	for (int i = 0 ;  i < row_mat2*col_mat2 ; i++)
                 input_str2.push_back(request->tensor2(i));  
-	matrix1 = getMat(input_size1,input_str1,row_mat1, col_mat1);
+	std::cout << input_size1 <<std::endl;
+	std::cout << input_size2 <<std::endl;
 	if (col_mat1 != row_mat2) {
-		std::cout << "TRANSPOSE" <<std::endl;
-		matrix2 = transpose(input_str2, row_mat2, col_mat2);
+		if(col_mat1 == col_mat2){
+			//std::cout << "TRANSPOSE" <<std::endl;
+			matrix1 = getMat(input_size1,input_str1,row_mat1, col_mat1);
+			matrix2 = transpose(input_str2, row_mat2, col_mat2);
+		}
+		else if(row_mat2 == row_mat1){
+			matrix1 = transpose(input_str1,row_mat1,col_mat1);
+			matrix2= getMat(input_size2,input_str2,row_mat2, col_mat2);
+		}
 	}
-	else
+	else{
+		 matrix1 = getMat(input_size1,input_str1,row_mat1, col_mat1);
 		 matrix2 = getMat(input_size2,input_str2,row_mat2, col_mat2);
-
+	}
 	/*std::cout << "input_size" << std::endl;
 	std::cout <<input_size1<< std::endl;
 	std::cout <<input_size2<< std::endl;
