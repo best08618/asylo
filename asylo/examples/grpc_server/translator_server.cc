@@ -16,7 +16,7 @@
  *
  */
 
-//change code here: grpc server takes float array , calculates and returns float array 
+//change code here: grpc server takes double array , calculates and returns double array 
 
 #include "asylo/examples/grpc_server/translator_server.h"
 #include "absl/strings/str_split.h" // jinhwan
@@ -25,6 +25,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "include/grpcpp/grpcpp.h"
+
+//#include "pthread.h"
+//#define NUM_THREAD 2
 
 namespace examples {
 namespace grpc_server {
@@ -35,9 +38,9 @@ TranslatorServer::TranslatorServer()
       translation_map_({{"asylo", "sanctuary"},
                         {"istio", "sail"},
                         {"kubernetes", "helmsman"}}) {}
-float** matrix1;
-float** matrix2;
-float** matrix_result;
+double** matrix1;
+double** matrix2;
+double** matrix_result;
 absl::Mutex mutex_;
 std::string output;
 
@@ -46,6 +49,9 @@ int col_mat1 = 0;
 
 int row_mat2 = 0;
 int col_mat2 = 0;
+
+//int step= 0 ;
+//int thread_num = 0;
 
 void TranslatorServer::split(const std::string &str, std::vector<std::string> &vect, char ch)
 {
@@ -75,13 +81,13 @@ void TranslatorServer::getDim(std::string size, int &count_rows, int &count_colu
         count_columns = atoi(vect_shape[1].erase((vect_shape[1].length()-1), 1).c_str());
 }
 
-float** TranslatorServer::getMat(std::string size,std::vector<float> input, int &count_rows, int &count_columns) {
-	float** ary;
-	ary = new float*[count_rows];
+double** TranslatorServer::getMat(std::string size,std::vector<double> input, int &count_rows, int &count_columns) {
+	double** ary;
+	ary = new double*[count_rows];
 	for (int i = 0; i < count_rows; ++i)
-		ary[i] = new float[count_columns];
+		ary[i] = new double[count_columns];
 
-	std::vector<float> vect_values=input;
+	std::vector<double> vect_values=input;
 
 	for (int row = 0; row < count_rows; row++) {
 		for (int column = 0; column < count_columns; column++) {
@@ -92,19 +98,71 @@ float** TranslatorServer::getMat(std::string size,std::vector<float> input, int 
 	return ary;
 }
 
-float** TranslatorServer::transpose(std::vector<float> input, int &count_rows, int &count_columns) {
-	float** ary;
+/*
+void* multi(void* arg)
+{
+	double _temp = 0 ; 
+	//int row = step/(col_mat2) ;
+	//int col = step%(col_mat2)  ;
+	int core = step ; 
+	step ++;
+	if( row_mat1 / NUM_THREAD >= 1  ){
+		for ( int i = (core * row_mat1)/ NUM_THREAD; (i < (core+ 1) *row_mat1/ NUM_THREAD)&&(i < row_mat1)  ; i ++){
+			for(int j =  0 ; j < col_mat2 ; j++){
+				for(int k= 0 ; k < col_mat1 ; k++){
+					//mutex_.Lock();
+					_temp+= matrix1[i][k]* matrix2[k][j];
+					//mutex_.Unlock();
+				}
+				if( std::isnan(_temp) != 0 )
+					_temp= 0;
+				if(_temp > INT_MAX)
+					_temp=INT_MAX;
+				if(_temp < INT_MIN)
+					_temp=INT_MIN;
+				matrix_result[i][j] =  _temp;
+				_temp = 0;
+			}
+		}
+	}
+	else{
+		for(int i= 0 ; i < row_mat1 ; i ++){
+			for( int j = 0 ; j <col_mat2 ; j ++){
+				for( int k =0 ; k <col_mat1 ; k++)
+				{
+					_temp += matrix1[i][k] * matrix2[k][j];	
+				}
+				if( std::isnan(_temp) != 0 )
+					_temp= 0;
+				if(_temp > INT_MAX)
+					_temp=INT_MAX;
+				if(_temp < INT_MIN)
+					_temp=INT_MIN;
+				matrix_result[i][j] =  _temp;
+				_temp = 0;
+			}
+		}
+
+	}
+	return nullptr;
+		
+}
+*/
+
+
+double** TranslatorServer::transpose(std::vector<double> input, int &count_rows, int &count_columns) {
+	double** ary;
 
 	int temp;
 	temp = count_rows;
 	count_rows= count_columns;
 	count_columns = temp;
 	
-	ary = new float*[count_rows];
+	ary = new double*[count_rows];
 	for (int i = 0; i < count_rows; ++i)
-		ary[i] = new float[count_columns];
+		ary[i] = new double[count_columns];
 
-	std::vector<float> vect_values=input;
+	std::vector<double> vect_values=input;
 
         for (int row = 0; row < count_rows; row++) {
                 for (int column = 0; column < count_columns; column++) {
@@ -117,22 +175,22 @@ float** TranslatorServer::transpose(std::vector<float> input, int &count_rows, i
 	return ary;
 }
 
-float** TranslatorServer::matmul(float** input_mat1, float** input_mat2) {
-	float** result_mat;
+double** TranslatorServer::matmul(double** input_mat1, double** input_mat2) {
+	double** result_mat;
 
 	/*if (col_mat1 != row_mat2) {
 		std::cout << "ERROR" << std::endl;
 		return NULL;
 	}*/
 
-	result_mat = new float*[row_mat1];
+	result_mat = new double*[row_mat1];
 
 	for (int i = 0; i < row_mat1; i++)
 	{
-		result_mat[i] = new float[col_mat2];
+		result_mat[i] = new double[col_mat2];
 	}
 
-	float _temp=0;
+	double _temp=0;
 
 	for (int i = 0; i < row_mat1; i++) {
 		for (int j = 0; j < col_mat2; j++) {
@@ -146,7 +204,7 @@ float** TranslatorServer::matmul(float** input_mat1, float** input_mat2) {
 	return result_mat;
 }
 void TranslatorServer::getOutput() {
-	//output = string("type: float32 shape: [");
+	//output = string("type: double32 shape: [");
 	//output += std::to_string(row_mat1) + "," + std::to_string(col_mat2) + "] ";
 	//output += "values: ";
 	output = "";
@@ -174,19 +232,16 @@ void TranslatorServer::deleteMemory() {
 	{
 		delete[] matrix1[i];
 	}
-	delete[] matrix1;
 
 	for (int i = 0; i < row_mat2; i++)
 	{
 		delete[] matrix2[i];
 	}
-	delete[] matrix2;
 
 	for (int i = 0; i < row_mat1; i++)
 	{
 		delete[] matrix_result[i];
 	}
-	delete[] matrix_result;
 }
 
 ::grpc::Status TranslatorServer::GetTranslation(
@@ -226,18 +281,28 @@ void TranslatorServer::deleteMemory() {
 	//request->input_word() should have two vectors
 	//std::string input_str1 = "[1,3] [-2.5 0.5 1]";
 	//std::string input_str2 = "[3,5] [1 1 1 1 1][1 0 3 0 5][0 2 0 4 0]";
+   
+   	row_mat1 = 0;
+	col_mat1 = 0;
+	row_mat2 = 0;
+	col_mat2 = 0;
+	//step= 0 ;
+	//thread_num = 0;
+
   	std::string input_size1= request->tensor1_shape();
 	std::string input_size2= request->tensor2_shape();
-	std::vector<float> input_str1 ;
-	std::vector<float> input_str2 ;
+	std::vector<double> input_str1 ;
+	std::vector<double> input_str2 ;
 	getDim(input_size1,row_mat1,col_mat1);
-	getDim(input_size2,row_mat2,col_mat2); 
+	getDim(input_size2,row_mat2,col_mat2);
+
+	//thread_num = row_mat1 * col_mat2;
 	for (int i = 0 ;  i < row_mat1*col_mat1 ; i++)
 		input_str1.push_back(request->tensor1(i));
 	for (int i = 0 ;  i < row_mat2*col_mat2 ; i++)
                 input_str2.push_back(request->tensor2(i));  
-	std::cout << input_size1 <<std::endl;
-	std::cout << input_size2 <<std::endl;
+	//std::cout << input_size1 <<std::endl;
+	//std::cout << input_size2 <<std::endl;
 	if (col_mat1 != row_mat2) {
 		if(col_mat1 == col_mat2){
 			//std::cout << "TRANSPOSE" <<std::endl;
@@ -259,6 +324,30 @@ void TranslatorServer::deleteMemory() {
 	std::cout <<input_str1<< std::endl;
         std::cout <<input_str2<< std::endl;
 	*/
+
+	matrix_result = new double*[row_mat1];
+	for (int j = 0; j < row_mat1; ++j){
+		matrix_result[j] = new double[col_mat2];
+		for(int i= 0 ; i <col_mat2; i ++)
+			memset(&matrix_result[j][i],0,sizeof(matrix_result[j][i]));
+	}
+	/*
+	pthread_t threads[NUM_THREAD];
+	int th_num =NUM_THREAD ; 
+	if(row_mat1/NUM_THREAD <  1 ){
+		th_num = 1;
+		
+	}
+	//crate threads
+	for( int k = 0 ;k < th_num ; k ++){
+		pthread_create(&threads[k],NULL,&multi,nullptr);
+	}
+
+	//join and waiting for all threads to complete
+	for (int k=0 ; k< th_num ; k++)
+		pthread_join(threads[k],NULL);
+	*/
+	
 	matrix_result = matmul(matrix1, matrix2);
 
 	if (matrix_result != NULL) {

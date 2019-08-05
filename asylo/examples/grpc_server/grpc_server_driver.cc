@@ -25,7 +25,7 @@
 DEFINE_string(enclave_path, "", "Path to enclave to load");
 
 // By default, keep the server running for five minutes.
-DEFINE_int32(server_lifetime, 600,
+DEFINE_int32(server_lifetime, 16000,
              "The time the server should remain running in seconds");
 
 // A port of 0 is used to indicate that the system should choose an available

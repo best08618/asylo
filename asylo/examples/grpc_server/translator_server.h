@@ -47,16 +47,17 @@ class TranslatorServer final : public Translator::Service {
 
 	void split(const std::string &str, std::vector<std::string> &vect, char ch);
 	void getDim(std::string size,int& count_rows, int& count_columns);
-	float** getMat(std::string size, std::vector<float> input, int &count_rows, int &count_columns);
-	float** transpose(std::vector<float> input, int &count_rows, int &count_columns);
-	float** matmul(float** input_mat1, float** input_mat2);
+	double** getMat(std::string size, std::vector<double> input, int &count_rows, int &count_columns);
+	double** transpose(std::vector<double> input, int &count_rows, int &count_columns);
+	double** matmul(double** input_mat1, double** input_mat2);
+	//void* multi(void* arg);
 	void getOutput();
  	void setOutput(GetMatmulResponse *response);
 	void deleteMemory();
-
-	float** matrix1;
-	float** matrix2;
-	float** matrix_result;
+/*
+	double** matrix1;
+	double** matrix2;
+	double** matrix_result;
 
 	std::string output;
 
@@ -66,6 +67,7 @@ class TranslatorServer final : public Translator::Service {
 	int row_mat2 = 0;
 	int col_mat2 = 0;
 
+*/
 };
 
 }  // namespace grpc_server

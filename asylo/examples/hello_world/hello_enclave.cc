@@ -23,6 +23,7 @@
 #include "asylo/util/logging.h"
 #include "asylo/trusted_application.h"
 #include "asylo/util/status.h"
+#include "pthread.h"
 
 class HelloApplication : public asylo::TrustedApplication {
  public:
@@ -36,7 +37,7 @@ class HelloApplication : public asylo::TrustedApplication {
     }
     std::string visitor =
         input.GetExtension(hello_world::enclave_input_hello).to_greet();
-
+    pthread_t tid;
     LOG(INFO) << "Hello " << visitor;
     if (output) {
       LOG(INFO) << "Incrementing visitor count...";

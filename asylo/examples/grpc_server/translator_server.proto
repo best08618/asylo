@@ -23,13 +23,13 @@ message GetTranslationRequest {
   optional string input_word = 2;
 }
 
-//get tensor size as string and value as float array type 
+//get tensor size as string and value as double array type 
 // A request message containing a word to be translated.
 message GetMatMulRequest {
   optional string tensor1_shape = 1;
-  repeated float tensor1 = 2;
+  repeated double tensor1 = 2;
   optional string tensor2_shape = 3;
-  repeated float tensor2 = 4;
+  repeated double tensor2 = 4;
 }
 
 
@@ -39,9 +39,9 @@ message GetTranslationResponse {
   optional string translated_word = 1;
 }
 
-//make matmul response (float array type)
+//make matmul response (double array type)
 message GetMatmulResponse {
-  repeated float result = 1;
+  repeated double result = 1;
 }
 
 service Translator {
